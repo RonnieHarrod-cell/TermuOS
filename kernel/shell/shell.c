@@ -24,6 +24,59 @@
 #define HOSTNAME "TermuOS"
 #define USERNAME "root"
 
+#define VFS_MAX_DEPTH 32
+
+static void normalize_path(const char *raw, char *out, int max)
+{
+    int starts[VFS_MAX_DEPTH];
+    int lens[VFS_MAX_DEPTH];
+    int depth = 0;
+
+    const char *p = raw;
+    while (*p)
+    {
+        while (*p == '/')
+            p++;
+        if (!*p)
+            break;
+
+        const char *start = p;
+        int len = 0;
+        while (*p && *p != '/')
+        {
+            p++;
+            len++;
+        }
+
+        if (len == 1 && start[0] == '.')
+        {
+            continue;
+        }
+        else if (len == 2 && start[0] == '.' && start[1] == '.')
+        {
+            if (depth > 0)
+                depth--;
+        }
+        else if (depth < VFS_MAX_DEPTH)
+        {
+            starts[depth] = (int)(start - raw);
+            lens[depth] = len;
+            depth++;
+        }
+    }
+
+    int oi = 0;
+    out[oi++] = '/';
+    for (int i = 0; i < depth; i++)
+    {
+        if (i > 0 && oi < max - 1)
+            out[oi++] = '/';
+        for (int j = 0; j < lens[i] && oi < max - 1; j++)
+            out[oi++] = raw[starts[i] + j];
+    }
+    out[oi] = '\0';
+}
+
 static char cwd[VFS_PATH_MAX] = "/";
 
 static inline uint8_t inb(uint16_t p)
@@ -101,26 +154,30 @@ static void sh_memset(void *p, uint8_t v, int n)
 
 static void resolve_path(const char *arg, char *out, int max)
 {
+    static char raw[VFS_PATH_MAX];
     if (arg[0] == '/')
     {
-        sh_strcpy(out, arg, max);
-        return;
+        sh_strcpy(raw, arg, VFS_PATH_MAX);
     }
-    int cl = sh_strlen(cwd);
-    sh_strcpy(out, cwd, max);
-    if (cwd[cl - 1] != '/')
+    else
     {
-        out[cl] = '/';
-        out[cl + 1] = 0;
+        int cl = sh_strlen(cwd);
+        sh_strcpy(raw, cwd, VFS_PATH_MAX);
+        if (cwd[cl - 1] != '/')
+        {
+            raw[cl] = '/';
+            raw[cl + 1] = 0;
+        }
+        int ol = sh_strlen(raw);
+        int i = 0;
+        while (arg[i] && ol + i < VFS_PATH_MAX - 1)
+        {
+            raw[ol + i] = arg[i];
+            i++;
+        }
+        raw[ol + i] = 0;
     }
-    int ol = sh_strlen(out);
-    int i = 0;
-    while (arg[i] && ol + i < max - 1)
-    {
-        out[ol + i] = arg[i];
-        i++;
-    }
-    out[ol + i] = 0;
+    normalize_path(raw, out, max);
 }
 
 static int readline(char *buf, int max)
@@ -264,10 +321,10 @@ static void cmd_threads(int argc, char **argv)
         if (threads[i].state == THREAD_DEAD)
             continue;
         kprintf("%u\t%u\t%s\t%s\n",
-            threads[i].id,
-            threads[i].owner ? threads[i].owner->pid : 0,
-            st[threads[i].state],
-            threads[i].name);
+                threads[i].id,
+                threads[i].owner ? threads[i].owner->pid : 0,
+                st[threads[i].state],
+                threads[i].name);
     }
 }
 
@@ -449,8 +506,9 @@ static void cmd_shutdown(int argc, char **argv)
     outw(0xB004, 0x2000);
     // QEMU debug exit
     outb(0x501, 0x31);
-    
-    for (;;) __asm__ volatile("hlt");
+
+    for (;;)
+        __asm__ volatile("hlt");
 }
 
 static void cmd_reboot(int argc, char **argv)
@@ -504,7 +562,8 @@ static void cmd_ping(int argc, char **argv)
     for (volatile int i = 0; i < 500; i++)
     {
         virtio_net_poll();
-        for (volatile int j = 0; j < 100000; j++)   ;
+        for (volatile int j = 0; j < 100000; j++)
+            ;
     }
     net_send_icmp_echo(dst, 1, 2);
 }
@@ -589,17 +648,20 @@ static void cmd_exec(int argc, char **argv)
 
 static void cmd_update(int argc, char **argv)
 {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
     kprintf("update: signalling host...\n");
     // write magic string to COM1
     const char *magic = "TERMUOS_UPDATE\n";
     for (const char *p = magic; *p; p++)
     {
-        while (!(inb(0x3FD) & 0x20)) ; // wait for TX ready
+        while (!(inb(0x3FD) & 0x20))
+            ; // wait for TX ready
         outb(0x3F8, *p);
     }
     kprintf("update: rebooting...\n");
-    for (volatile int i = 0; i < 10000000; i++) ;
+    for (volatile int i = 0; i < 10000000; i++)
+        ;
     outb(0x64, 0xFE); // PS/2 reset
 }
 
@@ -623,19 +685,19 @@ static void cmd_run(int argc, char **argv)
 
     int plen = sh_strlen(path);
     int has_ext = (plen > 5 &&
-                   path[plen-5] == '.' &&
-                   path[plen-4] == 't' &&
-                   path[plen-3] == 'a' &&
-                   path[plen-2] == 'p' &&
-                   path[plen-1] == 'p');
+                   path[plen - 5] == '.' &&
+                   path[plen - 4] == 't' &&
+                   path[plen - 3] == 'a' &&
+                   path[plen - 2] == 'p' &&
+                   path[plen - 1] == 'p');
     if (!has_ext && plen + 5 < VFS_PATH_MAX)
     {
-        path[plen+0] = '.';
-        path[plen+1] = 't';
-        path[plen+2] = 'a';
-        path[plen+3] = 'p';
-        path[plen+4] = 'p';
-        path[plen+5] = '\0';
+        path[plen + 0] = '.';
+        path[plen + 1] = 't';
+        path[plen + 2] = 'a';
+        path[plen + 3] = 'p';
+        path[plen + 4] = 'p';
+        path[plen + 5] = '\0';
     }
 
     // check exists
