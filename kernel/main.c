@@ -5,7 +5,6 @@
 #include "drivers/video/fb.h"
 #include "drivers/video/terminal.h"
 #include "drivers/input/keyboard.h"
-#include "drivers/input/mouse.h"
 #include "arch/x86_64/idt.h"
 #include "arch/x86_64/gdt.h"
 #include "arch/x86_64/pit.h"
@@ -27,7 +26,6 @@
 #include "ipc/port.h"
 #include "tlib/tlib_bundle.h"
 #include "tlib/exec.h"
-#include "gui/wm.h"
 
 LIMINE_BASE_REVISION(3);
 
@@ -77,10 +75,8 @@ void kernel_main(void)
 
     fb_init(fb);
     terminal_init();
-    uint64_t term_h = fb->height / 3;
-    uint64_t term_y = fb->height - term_h;
-    terminal_set_size(fb->width, term_h);
-    terminal_set_offset(0, fb->height - (fb->height / 3));
+    terminal_set_size(fb->width, fb->height);
+    terminal_set_offset(0, 0);
     fb_clear(0x0D0D0D);
 
     gdt_init();
@@ -118,7 +114,6 @@ void kernel_main(void)
     proc_init();
     scheduler_init();
     pit_init(100);
-    mouse_init();
 
     ata_ioman_register();
     keyboard_ioman_register();
@@ -136,15 +131,12 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
 
-    thread_t *wm_thread = thread_create("wm", wm_thread_entry, proc_kernel());
-    if (!wm_thread)
-        kprintf("kernel: failed to create wm thread\n");
-
     // run shell on own thread
     thread_t *shell_thread = thread_create("shell", shell_thread_entry, proc_kernel());
     if (!shell_thread)
         kprintf("kernel: failed to create shell thread\n");
 
     scheduler_yield();
-    for (;;) __asm__ volatile("hlt");
+    for (;;)
+        __asm__ volatile("hlt");
 }

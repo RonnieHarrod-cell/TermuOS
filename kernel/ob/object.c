@@ -4,53 +4,74 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* ── helpers ───────────────────────────────────────────────────────────── */
+/* Helper functions */
 static int ob_strcmp(const char *a, const char *b)
 {
-    while (*a && *b && *a == *b) { a++; b++; }
+    while (*a && *b && *a == *b)
+    {
+        a++;
+        b++;
+    }
     return *a - *b;
 }
 
 static int ob_strlen(const char *s)
 {
-    int n = 0; while (s[n]) n++; return n;
+    int n = 0;
+    while (s[n])
+        n++;
+    return n;
 }
 
 static void ob_strcpy(char *d, const char *s, int max)
 {
     int i = 0;
-    while (s[i] && i < max - 1) { d[i] = s[i]; i++; }
+    while (s[i] && i < max - 1)
+    {
+        d[i] = s[i];
+        i++;
+    }
     d[i] = '\0';
 }
 
-/* ── namespace root ────────────────────────────────────────────────────── */
+/* Namespace root */
 static object_header_t ns_root;
 
-/* ── built-in type callbacks ───────────────────────────────────────────── */
-static void proc_delete(object_header_t *obj)   { (void)obj; kprintf("ob: process deleted\n"); }
-static void thread_delete(object_header_t *obj) { (void)obj; kprintf("ob: thread deleted\n"); }
-static void dir_delete(object_header_t *obj)    { (void)obj; }
+/* Built-in type callbacks */
+static void proc_delete(object_header_t *obj)
+{
+    (void)obj;
+    kprintf("ob: process deleted\n");
+}
+static void thread_delete(object_header_t *obj)
+{
+    (void)obj;
+    kprintf("ob: thread deleted\n");
+}
+static void dir_delete(object_header_t *obj) { (void)obj; }
 
-object_type_t ObTypeProcess   = { "Process",   proc_delete   };
-object_type_t ObTypeThread    = { "Thread",     thread_delete };
-object_type_t ObTypeDirectory = { "Directory",  dir_delete    };
+object_type_t ObTypeProcess = {"Process", proc_delete};
+object_type_t ObTypeThread = {"Thread", thread_delete};
+object_type_t ObTypeDirectory = {"Directory", dir_delete};
 
-/* ── object pool ───────────────────────────────────────────────────────── */
+/* Object pool */
 #define OB_POOL_SIZE 256
 static object_header_t ob_pool[OB_POOL_SIZE];
-static uint8_t         ob_pool_used[OB_POOL_SIZE];
+static uint8_t ob_pool_used[OB_POOL_SIZE];
 
 static object_header_t *ob_alloc_header(void)
 {
-    for (int i = 0; i < OB_POOL_SIZE; i++) {
-        if (!ob_pool_used[i]) {
+    for (int i = 0; i < OB_POOL_SIZE; i++)
+    {
+        if (!ob_pool_used[i])
+        {
             ob_pool_used[i] = 1;
             object_header_t *h = &ob_pool[i];
-            h->ref_count   = 0;
-            h->ns_parent   = NULL;
+            h->ref_count = 0;
+            h->ns_parent = NULL;
             h->ns_children = NULL;
-            h->ns_next     = NULL;
-            h->body        = NULL;
+            h->ns_next = NULL;
+            h->body = NULL;
             return h;
         }
     }
@@ -65,31 +86,32 @@ static void ob_free_header(object_header_t *obj)
         ob_pool_used[idx] = 0;
 }
 
-/* ── init ───────────────────────────────────────────────────────────────── */
+/* Initialization */
 void ob_init(void)
 {
     for (int i = 0; i < OB_POOL_SIZE; i++)
         ob_pool_used[i] = 0;
 
-    /* set up root directory \ */
-    ns_root.type       = &ObTypeDirectory;
-    ns_root.ref_count  = 1;
-    ns_root.ns_parent  = NULL;
-    ns_root.ns_children= NULL;
-    ns_root.ns_next    = NULL;
-    ns_root.body       = NULL;
+    /* Set up the root directory. */
+    ns_root.type = &ObTypeDirectory;
+    ns_root.ref_count = 1;
+    ns_root.ns_parent = NULL;
+    ns_root.ns_children = NULL;
+    ns_root.ns_next = NULL;
+    ns_root.body = NULL;
     ob_strcpy(ns_root.name, "\\", OB_NAME_MAX);
 
     kprintf("ob: object manager ready\n");
 }
 
-/* ── lifecycle ──────────────────────────────────────────────────────────── */
+/* Object lifecycle */
 object_header_t *ob_create(object_type_t *type, const char *name, void *body)
 {
     object_header_t *obj = ob_alloc_header();
-    if (!obj) return NULL;
-    obj->type      = type;
-    obj->body      = body;
+    if (!obj)
+        return NULL;
+    obj->type = type;
+    obj->body = body;
     obj->ref_count = 1;
     ob_strcpy(obj->name, name, OB_NAME_MAX);
     return obj;
@@ -97,67 +119,85 @@ object_header_t *ob_create(object_type_t *type, const char *name, void *body)
 
 void ob_ref(object_header_t *obj)
 {
-    if (obj) obj->ref_count++;
+    if (obj)
+        obj->ref_count++;
 }
 
 void ob_deref(object_header_t *obj)
 {
-    if (!obj) return;
-    if (obj->ref_count > 0) obj->ref_count--;
-    if (obj->ref_count == 0) {
+    if (!obj)
+        return;
+    if (obj->ref_count > 0)
+        obj->ref_count--;
+    if (obj->ref_count == 0)
+    {
         if (obj->type && obj->type->on_delete)
             obj->type->on_delete(obj);
         ob_free_header(obj);
     }
 }
 
-/* ── namespace ──────────────────────────────────────────────────────────── */
+/* Namespace handling */
 
-/* walk path components, return the directory node for the parent,
-   and set *leaf to the final component name */
+/* Walk the path components, return the parent directory node, and fill in the final component name. */
 static object_header_t *ns_walk(const char *path, const char **leaf)
 {
-    if (!path || path[0] != '\\') return NULL;
+    if (!path || path[0] != '\\')
+        return NULL;
 
     object_header_t *dir = &ns_root;
 
-    /* skip leading backslash */
+    /* Skip the leading backslash. */
     const char *p = path + 1;
-    if (!*p) { if (leaf) *leaf = NULL; return dir; }
+    if (!*p)
+    {
+        if (leaf)
+            *leaf = NULL;
+        return dir;
+    }
 
-    while (1) {
-        /* extract next component */
+    while (1)
+    {
+        /* Read the next path component. */
         char component[OB_NAME_MAX];
         int ci = 0;
         while (*p && *p != '\\' && ci < OB_NAME_MAX - 1)
             component[ci++] = *p++;
         component[ci] = '\0';
 
-        int is_last = (*p == '\0' || (*p == '\\' && *(p+1) == '\0'));
+        int is_last = (*p == '\0' || (*p == '\\' && *(p + 1) == '\0'));
 
-        if (is_last) {
-            if (leaf) *leaf = path + (p - (path + 1) - ci);
+        if (is_last)
+        {
+            if (leaf)
+                *leaf = path + (p - (path + 1) - ci);
             /* find where leaf name starts in original path */
             /* just return component via a static buffer */
             static char leaf_buf[OB_NAME_MAX];
             ob_strcpy(leaf_buf, component, OB_NAME_MAX);
-            if (leaf) *leaf = leaf_buf;
+            if (leaf)
+                *leaf = leaf_buf;
             return dir;
         }
 
-        /* traverse into child directory */
+        /* Move into the matching child directory. */
         object_header_t *child = dir->ns_children;
         object_header_t *found = NULL;
-        while (child) {
+        while (child)
+        {
             if (ob_strcmp(child->name, component) == 0 &&
-                child->type == &ObTypeDirectory) {
-                found = child; break;
+                child->type == &ObTypeDirectory)
+            {
+                found = child;
+                break;
             }
             child = child->ns_next;
         }
-        if (!found) return NULL;
+        if (!found)
+            return NULL;
         dir = found;
-        if (*p == '\\') p++;
+        if (*p == '\\')
+            p++;
     }
 }
 
@@ -165,24 +205,28 @@ object_header_t *ob_mkdir(const char *path)
 {
     const char *leaf = NULL;
     object_header_t *parent = ns_walk(path, &leaf);
-    if (!parent || !leaf) return NULL;
+    if (!parent || !leaf)
+        return NULL;
 
-    /* check not already exists */
+    /* Make sure the directory does not already exist. */
     object_header_t *c = parent->ns_children;
-    while (c) {
-        if (ob_strcmp(c->name, leaf) == 0) return c;
+    while (c)
+    {
+        if (ob_strcmp(c->name, leaf) == 0)
+            return c;
         c = c->ns_next;
     }
 
     object_header_t *dir = ob_alloc_header();
-    if (!dir) return NULL;
-    dir->type      = &ObTypeDirectory;
+    if (!dir)
+        return NULL;
+    dir->type = &ObTypeDirectory;
     dir->ref_count = 1;
-    dir->body      = NULL;
+    dir->body = NULL;
     ob_strcpy(dir->name, leaf, OB_NAME_MAX);
-    dir->ns_parent   = parent;
+    dir->ns_parent = parent;
     dir->ns_children = NULL;
-    dir->ns_next     = parent->ns_children;
+    dir->ns_next = parent->ns_children;
     parent->ns_children = dir;
 
     kprintf("ob: mkdir %s\n", path);
@@ -193,14 +237,15 @@ int ob_insert(const char *path, object_header_t *obj)
 {
     const char *leaf = NULL;
     object_header_t *parent = ns_walk(path, &leaf);
-    if (!parent || !leaf) {
+    if (!parent || !leaf)
+    {
         kprintf("ob: insert failed, bad path: %s\n", path);
         return -1;
     }
 
     ob_strcpy(obj->name, leaf, OB_NAME_MAX);
-    obj->ns_parent   = parent;
-    obj->ns_next     = parent->ns_children;
+    obj->ns_parent = parent;
+    obj->ns_next = parent->ns_children;
     parent->ns_children = obj;
     ob_ref(obj);
     return 0;
@@ -210,12 +255,16 @@ object_header_t *ob_lookup(const char *path)
 {
     const char *leaf = NULL;
     object_header_t *parent = ns_walk(path, &leaf);
-    if (!parent) return NULL;
-    if (!leaf) return parent; /* path was root or a directory itself */
+    if (!parent)
+        return NULL;
+    if (!leaf)
+        return parent; /* path was root or a directory itself */
 
     object_header_t *c = parent->ns_children;
-    while (c) {
-        if (ob_strcmp(c->name, leaf) == 0) return c;
+    while (c)
+    {
+        if (ob_strcmp(c->name, leaf) == 0)
+            return c;
         c = c->ns_next;
     }
     return NULL;
@@ -224,14 +273,22 @@ object_header_t *ob_lookup(const char *path)
 void ob_list(const char *path)
 {
     object_header_t *dir;
-    if (!path || ob_strcmp(path, "\\") == 0) {
+    if (!path || ob_strcmp(path, "\\") == 0)
+    {
         dir = &ns_root;
-    } else {
+    }
+    else
+    {
         dir = ob_lookup(path);
     }
 
-    if (!dir) { kprintf("ob: %s not found\n", path); return; }
-    if (dir->type != &ObTypeDirectory) {
+    if (!dir)
+    {
+        kprintf("ob: %s not found\n", path);
+        return;
+    }
+    if (dir->type != &ObTypeDirectory)
+    {
         kprintf("%s  [%s] refs=%u\n", dir->name,
                 dir->type ? dir->type->name : "?", dir->ref_count);
         return;
@@ -239,8 +296,13 @@ void ob_list(const char *path)
 
     kprintf("Directory: %s\n", dir->name);
     object_header_t *c = dir->ns_children;
-    if (!c) { kprintf("  (empty)\n"); return; }
-    while (c) {
+    if (!c)
+    {
+        kprintf("  (empty)\n");
+        return;
+    }
+    while (c)
+    {
         if (c->type == &ObTypeDirectory)
             kprintf("  %s\\  [Directory]\n", c->name);
         else
@@ -253,7 +315,8 @@ void ob_list(const char *path)
 /* ── handle table ───────────────────────────────────────────────────────── */
 void handle_table_init(handle_table_t *ht)
 {
-    for (int i = 0; i < MAX_HANDLES; i++) {
+    for (int i = 0; i < MAX_HANDLES; i++)
+    {
         ht->entries[i].object = NULL;
         ht->entries[i].access = 0;
     }
@@ -261,8 +324,10 @@ void handle_table_init(handle_table_t *ht)
 
 int handle_alloc(handle_table_t *ht, object_header_t *obj, uint32_t access)
 {
-    for (int i = 0; i < MAX_HANDLES; i++) {
-        if (!ht->entries[i].object) {
+    for (int i = 0; i < MAX_HANDLES; i++)
+    {
+        if (!ht->entries[i].object)
+        {
             ht->entries[i].object = obj;
             ht->entries[i].access = access;
             ob_ref(obj);
@@ -275,10 +340,13 @@ int handle_alloc(handle_table_t *ht, object_header_t *obj, uint32_t access)
 
 object_header_t *handle_get(handle_table_t *ht, int handle, uint32_t access)
 {
-    if (handle < 0 || handle >= MAX_HANDLES) return NULL;
+    if (handle < 0 || handle >= MAX_HANDLES)
+        return NULL;
     handle_entry_t *e = &ht->entries[handle];
-    if (!e->object) return NULL;
-    if ((e->access & access) != access) {
+    if (!e->object)
+        return NULL;
+    if ((e->access & access) != access)
+    {
         kprintf("ob: access denied on handle %d\n", handle);
         return NULL;
     }
@@ -287,9 +355,11 @@ object_header_t *handle_get(handle_table_t *ht, int handle, uint32_t access)
 
 void handle_close(handle_table_t *ht, int handle)
 {
-    if (handle < 0 || handle >= MAX_HANDLES) return;
+    if (handle < 0 || handle >= MAX_HANDLES)
+        return;
     handle_entry_t *e = &ht->entries[handle];
-    if (e->object) {
+    if (e->object)
+    {
         ob_deref(e->object);
         e->object = NULL;
         e->access = 0;

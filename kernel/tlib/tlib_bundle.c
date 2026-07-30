@@ -4,29 +4,38 @@
 #include "../lib/printf.h"
 #include "../lib/string.h"
 
-// ── internal string helpers ──────────────────────────────────────────────────
+// Internal string helpers
 
 static int tl_strlen(const char *s)
 {
   int n = 0;
-  while (s[n]) n++;
+  while (s[n])
+    n++;
   return n;
 }
 
-// Copy at most (max-1) chars from src into dst and null-terminate.
+// Copy at most max - 1 characters from src into dst and terminate it with a null byte.
 static void tl_strncpy(char *dst, const char *src, int max)
 {
   int i = 0;
-  while (src[i] && i < max - 1) { dst[i] = src[i]; i++; }
+  while (src[i] && i < max - 1)
+  {
+    dst[i] = src[i];
+    i++;
+  }
   dst[i] = '\0';
 }
 
-// Append src to dst (dst has total capacity `max`).
+// Append src to dst, keeping within the buffer's maximum size.
 static void tl_strncat(char *dst, const char *src, int max)
 {
   int dlen = tl_strlen(dst);
   int i = 0;
-  while (src[i] && dlen + i < max - 1) { dst[dlen + i] = src[i]; i++; }
+  while (src[i] && dlen + i < max - 1)
+  {
+    dst[dlen + i] = src[i];
+    i++;
+  }
   dst[dlen + i] = '\0';
 }
 
@@ -34,8 +43,10 @@ static int tl_strncmp(const char *a, const char *b, int n)
 {
   for (int i = 0; i < n; i++)
   {
-    if (a[i] != b[i]) return (unsigned char)a[i] - (unsigned char)b[i];
-    if (!a[i]) return 0;
+    if (a[i] != b[i])
+      return (unsigned char)a[i] - (unsigned char)b[i];
+    if (!a[i])
+      return 0;
   }
   return 0;
 }
@@ -45,17 +56,17 @@ static int tl_isspace(char c)
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-// ── minimal JSON parser ──────────────────────────────────────────────────────
-// Handles only the flat structure used by tapp manifests:
-//   - string values:  "key": "value"
-//   - string arrays:  "key": ["a", "b"]
-// No nesting beyond one level of array. No numbers, no booleans.
+// Minimal JSON parser
+// This only handles the flat structure used by tapp manifests:
+//   - string values: "key": "value"
+//   - string arrays: "key": ["a", "b"]
+// There is no nesting beyond one array level, and no numbers or booleans.
 
 typedef struct
 {
   const char *src;
-  int         pos;
-  int         len;
+  int pos;
+  int len;
 } json_ctx_t;
 
 static void json_skip_ws(json_ctx_t *j)
@@ -67,131 +78,173 @@ static void json_skip_ws(json_ctx_t *j)
 static char json_peek(json_ctx_t *j)
 {
   json_skip_ws(j);
-  if (j->pos >= j->len) return '\0';
+  if (j->pos >= j->len)
+    return '\0';
   return j->src[j->pos];
 }
 
 static char json_consume(json_ctx_t *j)
 {
   json_skip_ws(j);
-  if (j->pos >= j->len) return '\0';
+  if (j->pos >= j->len)
+    return '\0';
   return j->src[j->pos++];
 }
 
-// Parse a JSON string (assumes opening '"' not yet consumed).
-// Writes up to (max-1) chars into buf. Returns 0 on success.
+// Parse a JSON string. The opening quote is assumed to be already consumed.
+// The function writes up to max - 1 characters into buf and returns 0 on success.
 static int json_parse_string(json_ctx_t *j, char *buf, int max)
 {
-  if (json_consume(j) != '"') return -1;
+  if (json_consume(j) != '"')
+    return -1;
   int i = 0;
   while (j->pos < j->len)
   {
     char c = j->src[j->pos++];
-    if (c == '"') { buf[i] = '\0'; return 0; }
-    if (c == '\\' && j->pos < j->len) c = j->src[j->pos++]; // skip escape
-    if (i < max - 1) buf[i++] = c;
+    if (c == '"')
+    {
+      buf[i] = '\0';
+      return 0;
+    }
+    if (c == '\\' && j->pos < j->len)
+      c = j->src[j->pos++]; // skip escape
+    if (i < max - 1)
+      buf[i++] = c;
   }
   return -1; // unterminated string
 }
 
-// Parse a JSON string array ["a","b",...] into out[][col_max].
-// *count is set to the number of elements found.
+// Parse a JSON string array such as ["a","b",...] into out[][col_max].
+// The count of parsed elements is written to *count.
 static int json_parse_str_array(json_ctx_t *j, char (*out)[TLIB_PERM_LEN],
                                 int col_max, int row_max, int *count)
 {
   *count = 0;
-  if (json_consume(j) != '[') return -1;
+  if (json_consume(j) != '[')
+    return -1;
   while (1)
   {
     char p = json_peek(j);
-    if (p == ']') { j->pos++; return 0; }
-    if (p == ',') { j->pos++; continue; }
+    if (p == ']')
+    {
+      j->pos++;
+      return 0;
+    }
+    if (p == ',')
+    {
+      j->pos++;
+      continue;
+    }
     if (p == '"')
     {
-      if (*count >= row_max) return -1;
-      if (json_parse_string(j, out[*count], col_max) != 0) return -1;
+      if (*count >= row_max)
+        return -1;
+      if (json_parse_string(j, out[*count], col_max) != 0)
+        return -1;
       (*count)++;
     }
-    else return -1;
+    else
+      return -1;
   }
 }
 
-// ── permission string → bit-flag ─────────────────────────────────────────────
+// Permission string to bit-flag mapping
 
 static uint32_t perm_to_flag(const char *perm)
 {
-  if (tl_strncmp(perm, "ipc.send",    8)  == 0) return TLIB_PERM_IPC_SEND;
-  if (tl_strncmp(perm, "ipc.receive", 11) == 0) return TLIB_PERM_IPC_RECEIVE;
-  if (tl_strncmp(perm, "fs.read",     7)  == 0) return TLIB_PERM_FS_READ;
-  if (tl_strncmp(perm, "fs.write",    8)  == 0) return TLIB_PERM_FS_WRITE;
-  if (tl_strncmp(perm, "proc.spawn",  10) == 0) return TLIB_PERM_PROC_SPAWN;
+  if (tl_strncmp(perm, "ipc.send", 8) == 0)
+    return TLIB_PERM_IPC_SEND;
+  if (tl_strncmp(perm, "ipc.receive", 11) == 0)
+    return TLIB_PERM_IPC_RECEIVE;
+  if (tl_strncmp(perm, "fs.read", 7) == 0)
+    return TLIB_PERM_FS_READ;
+  if (tl_strncmp(perm, "fs.write", 8) == 0)
+    return TLIB_PERM_FS_WRITE;
+  if (tl_strncmp(perm, "proc.spawn", 10) == 0)
+    return TLIB_PERM_PROC_SPAWN;
   kprintf("tlib: unknown permission '%s' (ignored)\n", perm);
   return 0;
 }
 
-// ── tlib_manifest_parse ───────────────────────────────────────────────────────
+// Manifest parsing
 
 int tlib_manifest_parse(const char *json, tlib_manifest_t *out)
 {
-  if (!json || !out) return -1;
+  if (!json || !out)
+    return -1;
 
-  // zero the struct
+  // Clear the manifest structure.
   for (size_t i = 0; i < sizeof(*out); i++)
     ((char *)out)[i] = 0;
 
-  json_ctx_t j = { .src = json, .pos = 0, .len = tl_strlen(json) };
+  json_ctx_t j = {.src = json, .pos = 0, .len = tl_strlen(json)};
 
-  // expect opening '{'
-  if (json_consume(&j) != '{') return -1;
+  // Expect the opening brace.
+  if (json_consume(&j) != '{')
+    return -1;
 
   while (1)
   {
     char p = json_peek(&j);
-    if (p == '}') break;
-    if (p == ',') { j.pos++; continue; }
-    if (p != '"') return -1;
+    if (p == '}')
+      break;
+    if (p == ',')
+    {
+      j.pos++;
+      continue;
+    }
+    if (p != '"')
+      return -1;
 
-    // parse key
+    // Parse the key.
     char key[64];
-    if (json_parse_string(&j, key, sizeof(key)) != 0) return -1;
+    if (json_parse_string(&j, key, sizeof(key)) != 0)
+      return -1;
 
-    // expect ':'
-    if (json_consume(&j) != ':') return -1;
+    // Expect a colon.
+    if (json_consume(&j) != ':')
+      return -1;
 
-    // dispatch on key
+    // Dispatch based on the key.
     if (tl_strncmp(key, "name", 4) == 0 && tl_strlen(key) == 4)
     {
-      if (json_parse_string(&j, out->name, TLIB_NAME_MAX) != 0) return -1;
+      if (json_parse_string(&j, out->name, TLIB_NAME_MAX) != 0)
+        return -1;
     }
     else if (tl_strncmp(key, "bundle_id", 9) == 0 && tl_strlen(key) == 9)
     {
-      if (json_parse_string(&j, out->bundle_id, TLIB_BUNDLE_ID_MAX) != 0) return -1;
+      if (json_parse_string(&j, out->bundle_id, TLIB_BUNDLE_ID_MAX) != 0)
+        return -1;
     }
     else if (tl_strncmp(key, "version", 7) == 0 && tl_strlen(key) == 7)
     {
-      if (json_parse_string(&j, out->version, TLIB_VERSION_MAX) != 0) return -1;
+      if (json_parse_string(&j, out->version, TLIB_VERSION_MAX) != 0)
+        return -1;
     }
     else if (tl_strncmp(key, "entry", 5) == 0 && tl_strlen(key) == 5)
     {
-      if (json_parse_string(&j, out->entry, TLIB_ENTRY_MAX) != 0) return -1;
+      if (json_parse_string(&j, out->entry, TLIB_ENTRY_MAX) != 0)
+        return -1;
     }
     else if (tl_strncmp(key, "permissions", 11) == 0 && tl_strlen(key) == 11)
     {
-      // permissions array has same element width as ports — cast is safe
+      // The permissions array uses the same element width as ports, so the cast is safe.
       if (json_parse_str_array(&j, out->permissions,
                                TLIB_PERM_LEN, TLIB_MAX_PERMS,
-                               &out->perm_count) != 0) return -1;
+                               &out->perm_count) != 0)
+        return -1;
     }
     else if (tl_strncmp(key, "ports", 5) == 0 && tl_strlen(key) == 5)
     {
-      // ports[] elements are TLIB_PORT_LEN wide; cast permissions ptr type
+      // Ports are stored as TLIB_PORT_LEN-wide entries, so we cast carefully here.
       if (json_parse_str_array(&j, (char (*)[TLIB_PERM_LEN])out->ports,
                                TLIB_PORT_LEN, TLIB_MAX_PORTS,
-                               &out->port_count) != 0) return -1;
+                               &out->port_count) != 0)
+        return -1;
     }
     else
     {
-      // unknown key — skip the value (string or array)
+      // This is an unknown key, so skip its value whether it is a string or an array.
       char p2 = json_peek(&j);
       if (p2 == '"')
       {
@@ -205,14 +258,20 @@ int tlib_manifest_parse(const char *json, tlib_manifest_t *out)
         while (j.pos < j.len)
         {
           char c = j.src[j.pos++];
-          if (c == '[') depth++;
-          else if (c == ']') { depth--; if (!depth) break; }
+          if (c == '[')
+            depth++;
+          else if (c == ']')
+          {
+            depth--;
+            if (!depth)
+              break;
+          }
         }
       }
     }
   }
 
-  // validate required fields
+  // Validate the required fields.
   if (!out->name[0] || !out->bundle_id[0] || !out->entry[0])
   {
     kprintf("tlib: manifest missing required field (name/bundle_id/entry)\n");
@@ -231,7 +290,8 @@ int tlib_manifest_parse(const char *json, tlib_manifest_t *out)
 
 int tlib_bundle_load(const char *bundle_path, tlib_app_t *out)
 {
-  if (!bundle_path || !out) return -1;
+  if (!bundle_path || !out)
+    return -1;
 
   // zero output
   for (size_t i = 0; i < sizeof(*out); i++)
@@ -274,7 +334,11 @@ int tlib_bundle_load(const char *bundle_path, tlib_app_t *out)
   }
 
   char *buf = (char *)kmalloc((size_t)msize + 1);
-  if (!buf) { kprintf("tlib: OOM reading manifest\n"); return -1; }
+  if (!buf)
+  {
+    kprintf("tlib: OOM reading manifest\n");
+    return -1;
+  }
 
   int fd = vfs_open(manifest_path, O_RDONLY);
   if (fd < 0)
@@ -352,9 +416,10 @@ void tlib_set_perm_mask(uint32_t mask)
 
 int tlib_check_perm(uint32_t perm)
 {
-  if (current_perm_mask == 0xffffffff) return 1; // kernel process
-  if (current_perm_mask & perm) return 1;
+  if (current_perm_mask == 0xffffffff)
+    return 1; // kernel process
+  if (current_perm_mask & perm)
+    return 1;
   kprintf("tlib: permission denied (needed 0x%x, have 0x%x)\n", perm, current_perm_mask);
   return 0;
 }
-

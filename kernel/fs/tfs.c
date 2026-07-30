@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Small helpers
 
 static int tfs_strlen(const char *s)
 {
@@ -48,7 +48,7 @@ static void tfs_memcpy(void *d, const void *s, size_t n)
         *bd++ = *bs++;
 }
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// Internal state
 
 static tfs_super_t _super;
 static int _mounted = 0;
@@ -86,7 +86,7 @@ static void tfs_close(vfs_node_t *node)
     }
 }
 
-// ─── Sector / block I/O ───────────────────────────────────────────────────────
+// Sector and block I/O
 
 static int read_sector(uint32_t lba, void *buf)
 {
@@ -100,7 +100,7 @@ static int write_sector(uint32_t lba, const void *buf)
     return r;
 }
 
-// Read/write a full 4KB data block (8 sectors)
+// Read or write one full 4 KB data block (8 sectors).
 static int read_block(uint32_t blk, void *buf)
 {
     uint32_t lba = TFS_LBA_DATA + blk * TFS_BLOCK_SECTORS;
@@ -124,7 +124,7 @@ static int write_block(uint32_t blk, const void *buf)
     return 0;
 }
 
-// ─── Superblock ───────────────────────────────────────────────────────────────
+// Superblock
 
 static int super_read(void)
 {
@@ -142,9 +142,9 @@ static int super_write(void)
     return write_sector(TFS_LBA_SUPER, buf);
 }
 
-// ─── Bitmap ───────────────────────────────────────────────────────────────────
+// Bitmap
 
-// Bitmap is 8 sectors = 4096 bytes, one bit per data block
+// The bitmap uses 8 sectors, or 4096 bytes, with one bit per data block.
 static uint8_t _bitmap[TFS_BITMAP_SECTORS * TFS_SECTOR_SIZE];
 
 static int bitmap_read(void)
@@ -175,7 +175,7 @@ static void bitmap_clr(uint32_t blk) { _bitmap[blk / 8] &= ~(1 << (blk % 8)); }
 static int32_t block_alloc(void)
 {
     for (uint32_t i = 1; i < _super.total_blocks; i++)
-    { /* skip block 0 — reserved as null sentinel */
+    { /* Skip block 0; it is reserved as the null sentinel. */
         if (!bitmap_get(i))
         {
             bitmap_set(i);
@@ -186,7 +186,7 @@ static int32_t block_alloc(void)
             }
             _super.free_blocks--;
             super_write();
-            // Zero the block
+            // Fill the new block with zeros.
             static uint8_t zero[TFS_BLOCK_SIZE];
             tfs_memset(zero, 0, TFS_BLOCK_SIZE);
             if (write_block(i, zero) < 0)
@@ -208,7 +208,7 @@ static void block_free(uint32_t blk)
     super_write();
 }
 
-// ─── Inode table ─────────────────────────────────────────────────────────────
+// Inode table
 
 static int inode_read(uint32_t ino, tfs_inode_t *out)
 {
@@ -254,9 +254,9 @@ static int32_t inode_alloc(void)
     return -1;
 }
 
-// ─── Directory helpers ────────────────────────────────────────────────────────
+// Directory helpers
 
-// Find a named entry in a directory inode. Returns child inode number or -1.
+// Look up a named entry in a directory inode and return the child inode number, or -1.
 static int32_t dir_lookup(uint32_t dir_ino, const char *name)
 {
     tfs_inode_t dir;
@@ -280,7 +280,7 @@ static int32_t dir_lookup(uint32_t dir_ino, const char *name)
     return -1;
 }
 
-// Add an entry to a directory. Returns 0 on success.
+// Add an entry to a directory and return 0 on success.
 static int dir_add(uint32_t dir_ino, const char *name, uint32_t child_ino)
 {
     tfs_inode_t dir;
@@ -289,7 +289,7 @@ static int dir_add(uint32_t dir_ino, const char *name, uint32_t child_ino)
 
     static uint8_t blkbuf[TFS_BLOCK_SIZE];
 
-    // Find a free slot in existing blocks first
+    // Look for an empty slot in the existing directory blocks first.
     for (int b = 0; b < TFS_MAX_DIRECT; b++)
     {
         if (!dir.blocks[b])
@@ -308,7 +308,7 @@ static int dir_add(uint32_t dir_ino, const char *name, uint32_t child_ino)
         }
     }
 
-    // Need a new block
+    // Create a new directory block if needed.
     for (int b = 0; b < TFS_MAX_DIRECT; b++)
     {
         if (!dir.blocks[b])
@@ -327,10 +327,10 @@ static int dir_add(uint32_t dir_ino, const char *name, uint32_t child_ino)
             return write_block(dir.blocks[b], blkbuf);
         }
     }
-    return -1; // no space
+    return -1; // The directory has no room left.
 }
 
-// Remove a named entry from a directory
+// Remove a named entry from a directory.
 static int dir_remove(uint32_t dir_ino, const char *name)
 {
     tfs_inode_t dir;

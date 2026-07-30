@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// ─── Bitmap allocator ────────────────────────────────────────────────────────
+// Bitmap allocator
 //
-// One bit per 4KB page. 0 = free, 1 = used.
-// The bitmap itself is placed at the first usable region large enough to hold it.
+// Each bit tracks one 4 KB page. A value of 0 means free, while 1 means used.
+// The bitmap lives in the first usable region that is large enough to hold it.
 
 #define BITS_PER_ENTRY 64
 #define PAGE_TO_BIT(p) ((p) / PAGE_SIZE)
@@ -19,8 +19,8 @@ static size_t total_pages = 0;
 static size_t free_pages = 0;
 static uint64_t highest_addr = 0; // highest usable physical address
 
-// Limine gives us physical addresses directly — no HHDM needed for early boot
-// We will access the bitmap via its physical address (identity-mapped by Limine)
+// Limine provides physical addresses directly, so we can use them without HHDM during early boot.
+// We access the bitmap through its physical address, which is identity-mapped by Limine.
 
 static inline void bitmap_set(size_t bit)
 {
@@ -37,11 +37,11 @@ static inline int bitmap_test(size_t bit)
     return (bitmap[BIT_IDX(bit)] >> BIT_OFF(bit)) & 1;
 }
 
-// ─── Init ────────────────────────────────────────────────────────────────────
+// Initialization
 
 void pmm_init(struct limine_memmap_response *memmap)
 {
-    // Pass 1: find highest usable address
+    // First pass: find the highest usable physical address.
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *e = memmap->entries[i];
@@ -53,12 +53,12 @@ void pmm_init(struct limine_memmap_response *memmap)
         }
     }
 
-    // How many pages and how many bitmap entries we need
+    // Figure out how many pages and bitmap entries are needed.
     size_t total_bits = highest_addr / PAGE_SIZE;
     bm_size = (total_bits + BITS_PER_ENTRY - 1) / BITS_PER_ENTRY;
     size_t bm_bytes = bm_size * sizeof(uint64_t);
 
-    // Pass 2: find a usable region large enough to hold the bitmap
+    // Second pass: find a usable region large enough for the bitmap.
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *e = memmap->entries[i];
@@ -75,11 +75,11 @@ void pmm_init(struct limine_memmap_response *memmap)
             __asm__ volatile("hlt");
     }
 
-    // Mark everything as used initially
+    // Mark every page as used at first.
     for (size_t i = 0; i < bm_size; i++)
         bitmap[i] = 0xffffffffffffffff;
 
-    // Pass 3: mark all USABLE pages as free
+    // Third pass: mark all usable pages as free.
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *e = memmap->entries[i];
@@ -96,7 +96,7 @@ void pmm_init(struct limine_memmap_response *memmap)
         }
     }
 
-    // Pass 4: mark the bitmap pages themselves as used
+    // Fourth pass: mark the bitmap pages themselves as used.
     size_t bm_pages = (bm_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
     for (size_t i = 0; i < bm_pages; i++)
     {
@@ -109,16 +109,16 @@ void pmm_init(struct limine_memmap_response *memmap)
     }
 }
 
-// ─── Alloc / Free ────────────────────────────────────────────────────────────
+// Allocation and freeing
 
 void *pmm_alloc(void)
 {
     for (size_t i = 0; i < bm_size; i++)
     {
         if (bitmap[i] == 0xffffffffffffffff)
-            continue; // all 64 pages in this entry are used
+            continue; // This 64-page chunk is fully allocated.
 
-        // Find the first free bit
+        // Find the first free page bit.
         for (int bit = 0; bit < BITS_PER_ENTRY; bit++)
         {
             if (!((bitmap[i] >> bit) & 1))

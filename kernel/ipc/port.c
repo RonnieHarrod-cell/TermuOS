@@ -7,30 +7,38 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// helpers
+// Small string helpers
 static void strcpy_s(char *d, const char *s, int max)
 {
   int i = 0;
-  while (s[i] && i < max - 1) { d[i] = s[i]; i++; }
+  while (s[i] && i < max - 1)
+  {
+    d[i] = s[i];
+    i++;
+  }
   d[i] = '\0';
 }
 
 static int strcmp_s(const char *a, const char *b)
 {
-  while (*a && *b && *a == *b) { a++; b++; }
+  while (*a && *b && *a == *b)
+  {
+    a++;
+    b++;
+  }
   return *a - *b;
 }
 
-// object type
+// Port object type
 static void port_delete_cb(object_header_t *obj) { (void)obj; }
-object_type_t ObTypePort = { "Port", port_delete_cb };
+object_type_t ObTypePort = {"Port", port_delete_cb};
 
-// pool
+// Port storage pool
 #define MAX_PORTS 32
 port_t port_pool[MAX_PORTS];
 uint8_t port_used[MAX_PORTS];
 
-// init
+// Initialize the subsystem
 void ipc_init(void)
 {
   for (int i = 0; i < MAX_PORTS; i++)
@@ -40,13 +48,20 @@ void ipc_init(void)
   kprintf("ipc: port subsystem ready\n");
 }
 
-// create
+// Create a port
 port_t *port_create(const char *name)
 {
   int slot = -1;
   for (int i = 0; i < MAX_PORTS; i++)
-    if (!port_used[i]) { slot = i; break; }
-  if (slot < 0) { kprintf("ipc: port pool full\n"); }
+    if (!port_used[i])
+    {
+      slot = i;
+      break;
+    }
+  if (slot < 0)
+  {
+    kprintf("ipc: port pool full\n");
+  }
 
   port_t *p = &port_pool[slot];
   port_used[slot] = 1;
@@ -57,13 +72,20 @@ port_t *port_create(const char *name)
   p->count = 0;
   p->waiter_count = 0;
 
-  // register in namespace under \Port\<name>
+  // Register the port in the namespace under \Port\<name>.
   char path[64];
   const char *pre = "\\Port\\";
   int pi = 0;
-  while (pre[pi]) { path[pi] = pre[pi]; pi++; }
+  while (pre[pi])
+  {
+    path[pi] = pre[pi];
+    pi++;
+  }
   int ni = 0;
-  while (name[ni] && pi < 63) { path[pi++] = name[ni++]; }
+  while (name[ni] && pi < 63)
+  {
+    path[pi++] = name[ni++];
+  }
   path[pi] = '\0';
 
   p->ob_header = ob_create(&ObTypePort, name, p);
@@ -73,28 +95,37 @@ port_t *port_create(const char *name)
   return p;
 }
 
-// find
+// Look up a port
 port_t *port_find(const char *name)
 {
   char path[64];
   const char *pre = "\\Port\\";
   int pi = 0;
-  while (pre[pi]) { path[pi] = pre[pi]; pi++; }
+  while (pre[pi])
+  {
+    path[pi] = pre[pi];
+    pi++;
+  }
   int ni = 0;
-  while (name[ni] && pi < 63) { path[pi++] = name[ni++]; }
+  while (name[ni] && pi < 63)
+  {
+    path[pi++] = name[ni++];
+  }
   path[pi] = '\0';
 
   object_header_t *obj = ob_lookup(path);
-  if (!obj || obj->type != &ObTypePort) return NULL;
+  if (!obj || obj->type != &ObTypePort)
+    return NULL;
   return (port_t *)obj->body;
 }
 
-// send
+// Send a message
 int port_send(port_t *port, uint32_t code, void *data, uint32_t length)
 {
-  if (!port) return -1;
+  if (!port)
+    return -1;
 
-  // block if queue full - spin for now, proper sleep later
+  // Wait if the queue is full for now; proper sleeping can come later.
   int spins = 0;
   while (port->count >= PORT_QUEUE_SIZE)
   {
@@ -105,20 +136,26 @@ int port_send(port_t *port, uint32_t code, void *data, uint32_t length)
     }
   }
 
-  // copy data onto heap so caller can free their buffer
+  // Copy the payload onto the heap so the caller can free their buffer later.
   void *payload = NULL;
   if (data && length > 0)
   {
     payload = kmalloc(length);
-    if (!payload) { kprintf("ipc: send OOM\n"); return -1; }
+    if (!payload)
+    {
+      kprintf("ipc: send OOM\n");
+      return -1;
+    }
     uint8_t *src = (uint8_t *)data;
     uint8_t *dst = (uint8_t *)payload;
-    for (uint32_t i = 0; i < length; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < length; i++)
+      dst[i] = src[i];
   }
 
   ipc_message_t *slot = &port->queue[port->tail];
   slot->sender_pid = thread_current()->owner
-                     ? thread_current()->owner->pid : 0;
+                         ? thread_current()->owner->pid
+                         : 0;
   slot->code = code;
   slot->data = payload;
   slot->length = length;
@@ -128,7 +165,7 @@ int port_send(port_t *port, uint32_t code, void *data, uint32_t length)
 
   kprintf("ipc: sent msg code=%u to port '%s' (queued=%u)\n", code, port->name, port->count);
 
-  // wake a waiter if any
+  // Wake a waiting thread if one exists.
   if (port->waiter_count > 0)
   {
     thread_t *waiter = port->waiters[0];
@@ -148,16 +185,17 @@ int port_send(port_t *port, uint32_t code, void *data, uint32_t length)
   return 0;
 }
 
-// receive
+// Receive a message
 int port_receive(port_t *port, ipc_message_t *out)
 {
-  if (!port || !out) return -1;
+  if (!port || !out)
+    return -1;
 
   __asm__ volatile("cli");
 
   if (port->count == 0)
   {
-    // no messages - block this thread
+    // No messages are queued, so block this thread.
     if (port->waiter_count >= PORT_QUEUE_SIZE)
     {
       __asm__ volatile("sti");
@@ -173,7 +211,7 @@ int port_receive(port_t *port, ipc_message_t *out)
     return 0;
   }
 
-  // message available - dequeue directly
+  // A message is ready, so dequeue it directly.
   *out = port->queue[port->head];
   port->head = (port->head + 1) % PORT_QUEUE_SIZE;
   port->count--;
@@ -182,22 +220,24 @@ int port_receive(port_t *port, ipc_message_t *out)
   return 0;
 }
 
-// destroy
+// Destroy a port
 void port_destroy(port_t *port)
 {
-  if (!port) return;
+  if (!port)
+    return;
 
-  // free any queued message payloads
+  // Free any queued message payloads.
   while (port->count > 0)
   {
     ipc_message_t *m = &port->queue[port->head];
-    if (m->data) kfree(m->data);
+    if (m->data)
+      kfree(m->data);
     port->head = (port->head + 1) % PORT_QUEUE_SIZE;
     port->count--;
   }
 
   ob_deref(port->ob_header);
-  
+
   int idx = (int)(port - port_pool);
   if (idx >= 0 && idx < MAX_PORTS)
     port_used[idx] = 0;

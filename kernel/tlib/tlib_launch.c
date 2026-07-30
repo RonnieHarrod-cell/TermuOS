@@ -9,19 +9,17 @@
 #include "../lib/printf.h"
 #include <stdint.h>
 
-// ── tlib_bundle_launch ────────────────────────────────────────────────────────
+// Launch a bundled app
 //
 // Steps:
-//   1. Validate that the app was loaded
-//   2. Create a kernel process_t
-//   3. ELF-load the entry binary into the process's pagemap
-//   4. Register the app's declared ports in the namespace under
-//      \App\<bundle_id>\<port_name>
-//   5. Switch pagemap and jump to userspace
-//      (does not return on success)
-// ────────────────────────────────────────────────────────────────────────────
+//   1. Confirm that the app was loaded.
+//   2. Create a kernel process_t.
+//   3. Load the entry binary into the process's pagemap.
+//   4. Register the app's declared ports under \App\<bundle_id>\<port_name>.
+//   5. Switch the pagemap and jump to userspace. This does not return on success.
+// -----------------------------------------------------------------------------
 
-// Tiny helper: build a string of the form prefix + suffix into dst[max].
+// Build a string of the form prefix + suffix into dst[max].
 static void tl_build_path(char *dst, int max,
                           const char *prefix, const char *suffix)
 {
@@ -36,7 +34,7 @@ static void tl_build_path(char *dst, int max,
 
 static void tlib_app_thread_entry(void)
 {
-  // retrieve context stored in thread's owner process ob header body
+  // Retrieve the launch context stored in the owning process object.
   thread_t *self = thread_current();
   tlib_launch_ctx_t *ctx = (tlib_launch_ctx_t *)self->owner->ob_header->body;
 
@@ -44,7 +42,7 @@ static void tlib_app_thread_entry(void)
   vmm_switch(ctx->pagemap);
   jump_userspace(ctx->entry, ctx->stack_top);
 
-  // should never return
+  // This should never return.
   kprintf("tlib: thread entry returned\n");
   thread_exit();
 }
@@ -59,7 +57,7 @@ int tlib_bundle_launch(tlib_app_t *app)
 
   tlib_manifest_t *m = &app->manifest;
 
-  // ── 1. create process ─────────────────────────────────────────────────────
+  // Step 1: create the process.
   process_t *proc = proc_create(m->name);
   if (!proc)
   {
@@ -67,7 +65,7 @@ int tlib_bundle_launch(tlib_app_t *app)
     return -1;
   }
 
-  // ── 2. load ELF into process pagemap ──────────────────────────────────────
+  // Step 2: load the ELF into the process pagemap.
   uint64_t entry = 0;
   if (exec_load(app->entry_path, proc, &entry) != 0)
   {
@@ -76,10 +74,9 @@ int tlib_bundle_launch(tlib_app_t *app)
     return -1;
   }
 
-  // ── 3. register declared ports in namespace ───────────────────────────────
-  // Creates \App\<bundle_id>\ then one port per ports[] entry.
-  // Ports are registered now so other apps can discover them by name
-  // before the new process has even run its first instruction.
+  // Step 3: register the declared ports in the namespace.
+  // This creates \App\<bundle_id> and one port per entry in ports[].
+  // The ports are registered early so other apps can discover them before the new process runs its first instruction.
   {
     ob_mkdir("\\App");
     char ns_dir[128];
@@ -92,11 +89,11 @@ int tlib_bundle_launch(tlib_app_t *app)
       if (!p)
       {
         kprintf("tlib: failed to create port '%s'\n", m->ports[i]);
-        // non-fatal: continue with remaining ports
+        // This is non-fatal, so continue with the remaining ports.
         continue;
       }
 
-      // insert into \App\<bundle_id>\<port_name>
+      // Insert the port into \App\<bundle_id>\<port_name>.
       char ns_port[192];
       int dlen = 0;
       while (ns_dir[dlen])
@@ -122,16 +119,21 @@ int tlib_bundle_launch(tlib_app_t *app)
     }
   }
 
-  // ── 4. switch pagemap and jump ────────────────────────────────────────────
+  // Step 4: switch the pagemap and jump to userspace.
   tlib_launch_ctx_t *ctx = (tlib_launch_ctx_t *)kmalloc(sizeof(tlib_launch_ctx_t));
-  if (!ctx) { kprintf("tlib: OOM allocating lauch ctx\n"); proc_exit(proc, -1); return -1; }
+  if (!ctx)
+  {
+    kprintf("tlib: OOM allocating lauch ctx\n");
+    proc_exit(proc, -1);
+    return -1;
+  }
 
   ctx->entry = entry;
   ctx->stack_top = EXEC_USER_STACK_TOP;
   ctx->pagemap = proc->pagemap;
   ctx->perm_mask = m->perm_mask;
 
-  // stash ctx in the process ob body so the thread entry can find it
+  // Store the launch context in the process object so the thread entry can find it.
   proc->ob_header->body = ctx;
 
   thread_t *t = thread_create(m->name, tlib_app_thread_entry, proc);
@@ -145,5 +147,5 @@ int tlib_bundle_launch(tlib_app_t *app)
 
   kprintf("tlib: scheduled '%s' (pid %u, tid %u)\n", m->name, proc->pid, (uint32_t)t->id);
   return 0;
-  // caller returns normally - scheduler picks up the new thread on next tick
+  // The caller returns normally; the scheduler will pick up the new thread on the next tick.
 }

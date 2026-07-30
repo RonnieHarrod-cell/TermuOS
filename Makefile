@@ -30,7 +30,6 @@ SRCS += \
 
 SRCS += \
        kernel/drivers/input/keyboard.c \
-       kernel/drivers/input/mouse.c \
        kernel/sched/scheduler.c
 
 SRCS += kernel/proc/process.c
@@ -65,10 +64,6 @@ SRCS += \
        kernel/fs/tfs.c
 
 SRCS += kernel/shell/shell.c
-
-SRCS += \
-       kernel/gui/draw.c \
-       kernel/gui/wm.c
 
 SRCS += \
        kernel/user/syscall.c \

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Small helpers
 
 static int vfs_strlen(const char *s)
 {
@@ -35,7 +35,7 @@ static void vfs_strcpy(char *dst, const char *src, int max)
     dst[i] = '\0';
 }
 
-// Concatenate two path segments safely
+// Join two path segments safely.
 static void vfs_pathjoin(char *out, int max, const char *base, const char *name)
 {
     vfs_strcpy(out, base, max);
@@ -51,7 +51,7 @@ static void vfs_pathjoin(char *out, int max, const char *base, const char *name)
     out[bl + i] = '\0';
 }
 
-// ─── Mount table / FD table ───────────────────────────────────────────────────
+// Mount table and file-descriptor table
 
 typedef struct
 {
@@ -63,7 +63,7 @@ typedef struct
 static mount_t mounts[VFS_MAX_MOUNTS];
 static vfs_fd_t fds[VFS_MAX_FDS];
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// Initialization
 
 void vfs_init(void)
 {
@@ -88,14 +88,14 @@ int vfs_mount(const char *path, vfs_node_t *root)
     return -1;
 }
 
-// ─── Path resolution ──────────────────────────────────────────────────────────
+// Path resolution
 
 vfs_node_t *vfs_resolve(const char *path)
 {
     if (!path || path[0] != '/')
         return NULL;
 
-    // Find longest matching mount point
+    // Pick the deepest matching mount point.
     mount_t *best = NULL;
     int best_len = -1;
     for (int i = 0; i < VFS_MAX_MOUNTS; i++)
@@ -110,7 +110,7 @@ vfs_node_t *vfs_resolve(const char *path)
                 matches = 0;
                 break;
             }
-        // For "/" mount (mlen==1), any absolute path matches
+        // A root mount matches any absolute path.
         int after_ok = (mlen == 1) || (path[mlen] == '/' || path[mlen] == '\0');
         if (matches && after_ok && mlen > best_len)
         {
@@ -128,13 +128,13 @@ vfs_node_t *vfs_resolve(const char *path)
 
     while (*p && node)
     {
-        // Skip extra slashes
+        // Ignore repeated slashes.
         while (*p == '/')
             p++;
         if (!*p)
             break;
 
-        // Extract component
+        // Read the next path component.
         char component[VFS_NAME_MAX];
         int ci = 0;
         while (*p && *p != '/' && ci < VFS_NAME_MAX - 1)
@@ -159,9 +159,9 @@ vfs_node_t *vfs_resolve(const char *path)
     return node;
 }
 
-// ─── Parent path helper ───────────────────────────────────────────────────────
+// Parent path helper
 
-// Splits "/a/b/c" into parent="/a/b" and name="c"
+// Split a path like "/a/b/c" into its parent directory and final name.
 static void split_path(const char *path, char *parent, char *name)
 {
     int last = 0;
@@ -193,7 +193,7 @@ static void split_path(const char *path, char *parent, char *name)
     name[i] = '\0';
 }
 
-// ─── FD allocation ────────────────────────────────────────────────────────────
+// File-descriptor allocation
 
 static int alloc_fd(void)
 {
@@ -203,7 +203,7 @@ static int alloc_fd(void)
     return -1;
 }
 
-// ─── API ──────────────────────────────────────────────────────────────────────
+// Public API
 
 int vfs_open(const char *path, uint32_t flags)
 {
