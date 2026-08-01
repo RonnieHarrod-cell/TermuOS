@@ -80,14 +80,27 @@ thread_t *thread_create(const char *name, void (*entry)(void), process_t *owner)
     char ob_path[32];
     const char *prefix = "\\Thread\\";
     int pi = 0;
-    while (prefix[pi]) { ob_path[pi] = prefix[pi]; pi++; }
+    while (prefix[pi])
+    {
+        ob_path[pi] = prefix[pi];
+        pi++;
+    }
     uint64_t id_tmp = t->id;
-    if (id_tmp == 0) { ob_path[pi++] = '0'; }
+    if (id_tmp == 0)
+    {
+        ob_path[pi++] = '0';
+    }
     else
     {
-        char tmp[16]; int ti = 0;
-        while (id_tmp) { tmp[ti++] = '0' + (id_tmp % 10); id_tmp /= 10; }
-        while (ti > 0) ob_path[pi++] = tmp[--ti];
+        char tmp[16];
+        int ti = 0;
+        while (id_tmp)
+        {
+            tmp[ti++] = '0' + (id_tmp % 10);
+            id_tmp /= 10;
+        }
+        while (ti > 0)
+            ob_path[pi++] = tmp[--ti];
     }
     ob_path[pi] = '\0';
 
@@ -124,12 +137,16 @@ thread_t *thread_current(void) { return &threads[current]; }
 
 static int next_thread(void)
 {
-    for (int i = 1; i <= MAX_THREADS; i++)
+    for (int i = 1; i < MAX_THREADS; i++)
     {
         int idx = (current + i) % MAX_THREADS;
+        if (idx == 0)
+            continue;
         if (threads[idx].state == THREAD_READY)
             return idx;
     }
+    if (threads[0].state == THREAD_READY)
+        return 0;
     return -1;
 }
 
@@ -162,11 +179,14 @@ void scheduler_yield(void)
 void scheduler_tick(registers_t *r)
 {
     (void)r;
-    if (!initialized) return;
+    if (!initialized)
+        return;
 
     int next = next_thread();
-    if (next < 0) return; // nothing to switch to
-    if (next == current) return; // already the best choice
+    if (next < 0)
+        return; // nothing to switch to
+    if (next == current)
+        return; // already the best choice
 
     int prev = current;
     if (threads[prev].state == THREAD_RUNNING)
