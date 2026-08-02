@@ -31,7 +31,8 @@ void proc_init(void)
   const char *kname = "kernel";
   while (kname[n] && n < PROCESS_NAME_LEN - 1)
   {
-    kproc->name[n] = kname[n]; n++;
+    kproc->name[n] = kname[n];
+    n++;
   }
   kproc->name[n] = '\0';
 
@@ -43,13 +44,17 @@ void proc_init(void)
   ob_insert("\\Process\\0", kproc->ob_header);
 }
 
-process_t *proc_create(const char *name) 
+process_t *proc_create(const char *name)
 {
   // find a free slot
   int slot = -1;
   for (int i = 1; i < MAX_PROCESSES; i++)
   {
-    if (proc_table[i].state == PROC_DEAD) { slot = i; break; }
+    if (proc_table[i].state == PROC_DEAD)
+    {
+      slot = i;
+      break;
+    }
   }
   if (slot < 0)
   {
@@ -68,14 +73,27 @@ process_t *proc_create(const char *name)
   char ob_path[32];
   const char *prefix = "\\Process\\";
   int pi = 0;
-  while (prefix[pi]) { ob_path[pi] = prefix[pi]; pi++; }
+  while (prefix[pi])
+  {
+    ob_path[pi] = prefix[pi];
+    pi++;
+  }
   uint32_t pid_tmp = p->pid;
-  if (pid_tmp == 0) { ob_path[pi++] = '0'; }
+  if (pid_tmp == 0)
+  {
+    ob_path[pi++] = '0';
+  }
   else
   {
-    char tmp[16]; int ti = 0;
-    while (pid_tmp) { tmp[ti++] = '0' + (pid_tmp % 10); pid_tmp /= 10; }
-    while (ti > 0) ob_path[pi++] = tmp[--ti];
+    char tmp[16];
+    int ti = 0;
+    while (pid_tmp)
+    {
+      tmp[ti++] = '0' + (pid_tmp % 10);
+      pid_tmp /= 10;
+    }
+    while (ti > 0)
+      ob_path[pi++] = tmp[--ti];
   }
   ob_path[pi] = '\0';
 
@@ -85,7 +103,8 @@ process_t *proc_create(const char *name)
   int n = 0;
   while (name[n] && n < PROCESS_NAME_LEN - 1)
   {
-    p->name[n] = name[n]; n++;
+    p->name[n] = name[n];
+    n++;
   }
   p->name[n] = '\0';
 
@@ -95,11 +114,22 @@ process_t *proc_create(const char *name)
 
 void proc_exit(process_t *proc, int32_t code)
 {
-  if (!proc) return;
+  if (!proc || proc == proc_kernel())
+    return;
+
   proc->exit_code = code;
   proc->state = PROC_ZOMBIE;
-  kprintf("proc: process %u '%s' exited with code %d\n", proc->pid, proc->name, code);
-  // TODO: reap threads, free pagemap, close handles
+  kprintf("proc: process %u '%s' exited with code %d\n",
+          proc->pid, proc->name, code);
+
+  for (int i = 0; i < MAX_HANDLES; i++)
+    handle_close(&proc->handles, i);
+
+  if (proc->ob_header)
+  {
+    ob_deref(proc->ob_header);
+    proc->ob_header = NULL;
+  }
 }
 
 process_t *proc_get(uint32_t pid)
