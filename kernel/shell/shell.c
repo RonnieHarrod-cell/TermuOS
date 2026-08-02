@@ -19,6 +19,8 @@
 #include <stddef.h>
 #include <stdarg.h>
 
+extern thread_t threads[MAX_THREADS];
+
 #define INPUT_MAX 256
 #define MAX_ARGS 16
 #define HOSTNAME "TermuOS"
@@ -264,7 +266,7 @@ static void cmd_help(int argc, char **argv)
     (void)argv;
     kprintf("Commands: help clear echo uname uptime mem threads\n");
     kprintf("          ls cd pwd cat write touch mkdir rm reboot shutdown\n");
-    kprintf("          exec ps\n");
+    kprintf("          exec ps kill mkfs\n");
     kprintf("          ifconfig ping arp smtp\n");
     kprintf("          obdir\n");
 }
@@ -731,6 +733,56 @@ static void cmd_ps(int argc, char **argv)
     proc_list();
 }
 
+static void cmd_kill(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        kprintf("kill: usage: kill <pid> [exit-code]\n");
+        return;
+    }
+
+    int pid = sh_atoi(argv[1]);
+    int exit_code = 0;
+    if (argc >= 3)
+        exit_code = sh_atoi(argv[2]);
+
+    process_t *proc = proc_get((uint32_t)pid);
+    if (!proc)
+    {
+        kprintf("kill: %d: no such process\n", pid);
+        return;
+    }
+
+    if (proc == proc_kernel())
+    {
+        kprintf("kill: connot kill kernel process\n");
+        return;
+    }
+
+    if (proc == thread_current()->owner)
+    {
+        kprintf("kill: cannot kill current process\n");
+        return;
+    }
+
+    proc_exit(proc, exit_code);
+
+    for (int i = 0; i < MAX_THREADS; i++)
+    {
+        if (threads[i].owner == proc && threads[i].state != THREAD_DEAD)
+        {
+            if (threads[i].ob_header)
+            {
+                ob_deref(threads[i].ob_header);
+                threads[i].ob_header = NULL;
+            }
+            threads[i].state = THREAD_DEAD;
+        }
+    }
+
+    kprintf("kill: process %d terminated with code %d\n", pid, exit_code);
+}
+
 // ─── Object ─────────────────────────────────────────────────────────────────
 static void cmd_obdir(int argc, char **argv)
 {
@@ -831,6 +883,7 @@ static const command_t commands[] = {
     {"obdir", cmd_obdir},
     {"run", cmd_run},
     {"ps", cmd_ps},
+    {"kill", cmd_kill},
     {NULL, NULL}};
 
 static void dispatch(char *line)

@@ -121,8 +121,11 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
 
-    // run shell on own thread
-    thread_t *shell_thread = thread_create("shell", shell_thread_entry, proc_kernel());
+    process_t *shell_proc = proc_create("shell");
+    if (!shell_proc)
+        shell_proc = proc_kernel();
+
+    thread_t *shell_thread = thread_create("shell", shell_thread_entry, shell_proc);
     if (!shell_thread)
         kprintf("kernel: failed to create shell thread\n");
 
