@@ -264,7 +264,7 @@ static void cmd_help(int argc, char **argv)
     (void)argv;
     kprintf("Commands: help clear echo uname uptime mem threads\n");
     kprintf("          ls cd pwd cat write touch mkdir rm reboot shutdown\n");
-    kprintf("          exec\n");
+    kprintf("          exec ps\n");
     kprintf("          ifconfig ping arp smtp\n");
     kprintf("          obdir\n");
 }
@@ -724,6 +724,13 @@ static void cmd_exec(int argc, char **argv)
     kprintf("exec: ELF loader not available in this build\n");
 }
 
+static void cmd_ps(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    proc_list();
+}
+
 // ─── Object ─────────────────────────────────────────────────────────────────
 static void cmd_obdir(int argc, char **argv)
 {
@@ -823,6 +830,7 @@ static const command_t commands[] = {
     {"mkfs", cmd_mkfs},
     {"obdir", cmd_obdir},
     {"run", cmd_run},
+    {"ps", cmd_ps},
     {NULL, NULL}};
 
 static void dispatch(char *line)
@@ -839,7 +847,7 @@ static void dispatch(char *line)
             commands[i].fn(argc, argv);
             return;
         }
-    kprintf("sh: command not found: %s\n", argv[0]);
+    kprintf("tsh: command not found: %s\n", argv[0]);
 }
 
 static void print_prompt(void)

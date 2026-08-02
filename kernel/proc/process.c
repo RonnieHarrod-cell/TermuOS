@@ -132,6 +132,37 @@ void proc_exit(process_t *proc, int32_t code)
   }
 }
 
+void proc_list(void)
+{
+  kprintf("PID  STATE    NAME\n");
+  kprintf("---  -------  ----------------\n");
+
+  for (int i = 0; i < MAX_PROCESSES; i++)
+  {
+    if (proc_table[i].state == PROC_DEAD)
+      continue;
+
+    const char *state = "unknown";
+    switch (proc_table[i].state)
+    {
+    case PROC_RUNNING:
+      state = "running";
+      break;
+    case PROC_ZOMBIE:
+      state = "zombie";
+      break;
+    default:
+      state = "dead";
+      break;
+    }
+
+    kprintf("%u  %s  %s\n",
+            proc_table[i].pid,
+            state,
+            proc_table[i].name);
+  }
+}
+
 process_t *proc_get(uint32_t pid)
 {
   for (int i = 0; i < MAX_PROCESSES; i++)

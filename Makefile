@@ -149,7 +149,7 @@ iso: $(KERNEL)
 		-o termuos.iso
 
 run: iso disk.img tools/tfs_write
-	@./tools/tfs_write disk.img apps/HelloGui /mnt/HelloGui.tapp
+# @./tools/tfs_write disk.img apps/test /mnt/test.tapp
 	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \

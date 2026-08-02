@@ -11,7 +11,7 @@ typedef enum
 {
   PROC_DEAD = 0,
   PROC_RUNNING = 1,
-  PROC_ZOMBIE = 2,  
+  PROC_ZOMBIE = 2,
 } proc_state_t;
 
 typedef struct process
@@ -29,5 +29,6 @@ typedef struct process
 void proc_init(void);
 process_t *proc_create(const char *name);
 void proc_exit(process_t *proc, int32_t code);
+void proc_list(void);
 process_t *proc_get(uint32_t pid);
 process_t *proc_kernel(void); // returns pid-0 kernel process
