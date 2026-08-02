@@ -15,6 +15,7 @@ static int ob_strcmp(const char *a, const char *b)
     return *a - *b;
 }
 
+static int ob_strlen(const char *s) __attribute__((unused));
 static int ob_strlen(const char *s)
 {
     int n = 0;

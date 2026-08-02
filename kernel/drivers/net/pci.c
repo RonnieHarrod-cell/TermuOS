@@ -17,13 +17,6 @@ static inline uint32_t inl(uint16_t port)
     return v;
 }
 
-static inline uint8_t inb(uint16_t port)
-{
-    uint8_t v;
-    __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"(port));
-    return v;
-}
-
 uint32_t pci_read(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
     uint32_t addr = (1u << 31) | ((uint32_t)bus << 16) | ((uint32_t)slot << 11) | ((uint32_t)func << 8) | (offset & 0xfc);

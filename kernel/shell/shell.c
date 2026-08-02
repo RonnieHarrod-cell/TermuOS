@@ -79,12 +79,6 @@ static void normalize_path(const char *raw, char *out, int max)
 
 static char cwd[VFS_PATH_MAX] = "/";
 
-static inline uint8_t inb(uint16_t p)
-{
-    uint8_t v;
-    __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"(p));
-    return v;
-}
 static inline void outb(uint16_t p, uint8_t v) { __asm__ volatile("outb %0,%1" ::"a"(v), "Nd"(p)); }
 
 const char *shell_get_cwd(void)
@@ -728,25 +722,6 @@ static void cmd_exec(int argc, char **argv)
     (void)argc;
     (void)argv;
     kprintf("exec: ELF loader not available in this build\n");
-}
-
-static void cmd_update(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    kprintf("update: signalling host...\n");
-    // write magic string to COM1
-    const char *magic = "TERMUOS_UPDATE\n";
-    for (const char *p = magic; *p; p++)
-    {
-        while (!(inb(0x3FD) & 0x20))
-            ; // wait for TX ready
-        outb(0x3F8, *p);
-    }
-    kprintf("update: rebooting...\n");
-    for (volatile int i = 0; i < 10000000; i++)
-        ;
-    outb(0x64, 0xFE); // PS/2 reset
 }
 
 // ─── Object ─────────────────────────────────────────────────────────────────

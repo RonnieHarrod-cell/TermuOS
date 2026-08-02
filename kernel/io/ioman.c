@@ -32,6 +32,7 @@ static void strcpy_s(char *dst, const char *src, int max)
     dst[i] = '\0';
 }
 
+static int strcmp_s(const char *a, const char *b) __attribute__((unused));
 static int strcmp_s(const char *a, const char *b)
 {
     while (*a && *b && *a == *b)

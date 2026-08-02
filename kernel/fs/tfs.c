@@ -8,6 +8,7 @@
 
 // Small helpers
 
+static int tfs_strlen(const char *s) __attribute__((unused));
 static int tfs_strlen(const char *s)
 {
     int n = 0;

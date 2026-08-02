@@ -112,6 +112,7 @@ static uint64_t sys_mmap(uint64_t addr, uint64_t len, uint64_t prot,
 {
     (void)prot;
     (void)off;
+    (void)fd;
 
     if (!(flags & MMAP_MAP_ANON))
         return (uint64_t)-1; /* ENOSYS — file mmap not supported */
@@ -203,8 +204,6 @@ static uint64_t sys_fstat(uint64_t fd, uint64_t buf_addr)
     }
     else
     {
-        uint32_t type;
-        uint64_t size;
         /* We do not have an fd-to-path lookup, so return a generic regular file. */
         st->st_mode = S_IFREG | 0644;
         st->st_blksize = 512;

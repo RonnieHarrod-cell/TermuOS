@@ -14,6 +14,7 @@ static int vfs_strlen(const char *s)
     return n;
 }
 
+static int vfs_strcmp(const char *a, const char *b) __attribute__((unused));
 static int vfs_strcmp(const char *a, const char *b)
 {
     while (*a && *b && *a == *b)
@@ -36,6 +37,7 @@ static void vfs_strcpy(char *dst, const char *src, int max)
 }
 
 // Join two path segments safely.
+static void vfs_pathjoin(char *out, int max, const char *base, const char *name) __attribute__((unused));
 static void vfs_pathjoin(char *out, int max, const char *base, const char *name)
 {
     vfs_strcpy(out, base, max);

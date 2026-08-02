@@ -264,6 +264,7 @@ void net_send_smtp(ip4_t dst, uint16_t dst_port,
                    const char *to, const char *subject,
                    const char *body)
 {
+    (void)helo;
     if (!tcp_conn.active)
     {
         tcp_conn.active = 1;
@@ -423,8 +424,10 @@ static void arp_table_set(ip4_t ip, mac_t mac)
     for (int i = 0; i < ARP_TABLE_SIZE; i++)
     {
         if (!arp_table[i].valid ||
-            arp_table[i].ip.b[0] == ip.b[0] && arp_table[i].ip.b[1] == ip.b[1] &&
-                arp_table[i].ip.b[2] == ip.b[2] && arp_table[i].ip.b[3] == ip.b[3])
+            (arp_table[i].ip.b[0] == ip.b[0] &&
+             arp_table[i].ip.b[1] == ip.b[1] &&
+             arp_table[i].ip.b[2] == ip.b[2] &&
+             arp_table[i].ip.b[3] == ip.b[3]))
         {
             arp_table[i].ip = ip;
             arp_table[i].mac = mac;
