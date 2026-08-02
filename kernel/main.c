@@ -20,6 +20,7 @@
 #include "drivers/net/virtio_net.h"
 #include "shell/shell.h"
 #include "lib/printf.h"
+#include "lib/cxxabi.h"
 #include "proc/process.h"
 #include "ob/object.h"
 #include "io/ioman.h"
@@ -87,6 +88,7 @@ void kernel_main(void)
     pmm_init(memmap_request.response);
     vmm_init(hhdm_request.response->offset, read_cr3());
     heap_init();
+    cxx_init();
     keyboard_init();
 
     vfs_init();

@@ -1,4 +1,5 @@
 CC   = clang
+CXX  = clang++
 LD   = ld.lld
 NASM = nasm
 
@@ -10,6 +11,12 @@ CPPSRCS :=
 CFLAGS = -target x86_64-elf -ffreestanding -fno-stack-protector -fno-pic \
          -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mcmodel=kernel \
          -O2 -Wall -Wextra -Ikernel -Ilimine
+
+CXXFLAGS = -target x86_64-elf -ffreestanding -fno-stack-protector -fno-pic \
+           -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mcmodel=kernel \
+           -O2 -Wall -Wextra -Ikernel -Ilimine \
+           -fno-exceptions -fno-rtti -fno-use-cxa-atexit \
+           -nostdinc++ -std=c++20
 
 SRCS += \
        kernel/main.c \
@@ -27,6 +34,8 @@ SRCS += \
 SRCS += \
        kernel/lib/printf.c \
        kernel/lib/string.c
+
+CPPSRCS += kernel/lib/cxxabi.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \
@@ -70,6 +79,7 @@ SRCS += \
        kernel/user/userspace.c
 
 OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS)) \
+       $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(CPPSRCS)) \
        $(BUILD_DIR)/kernel/arch/x86_64/entry.o \
        $(BUILD_DIR)/kernel/arch/x86_64/gdt_asm.o \
        $(BUILD_DIR)/kernel/arch/x86_64/isr.o \
@@ -86,6 +96,10 @@ all: iso
 $(BUILD_DIR)/%.o: %.c $(CONFIG_HEADER)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.cpp $(CONFIG_HEADER)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.asm
 	@mkdir -p $(dir $@)
