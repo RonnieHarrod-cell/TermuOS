@@ -5,8 +5,10 @@ NASM = nasm
 
 BUILD_DIR = kbuild
 
-v ?= $(VERBOSE)
+V ?= $(VERBOSE)
 ifeq ($(V),1)
+	Q =
+else
 	Q = @
 endif
 
@@ -20,9 +22,9 @@ ifeq ($(shell [ -t 1 ] && echo 1),1)
 endif
 
 quiet_C   = $(Q)printf "  ${C_C}[C]${C_RESET}     %s\n" "$<";
-quiet_CXX = $(Q)printf "  ${C_CXX}[C++]${C_RESET}   $s\n" "$<";
-quiet_ASM = $(Q)printf "  ${C_ASM}[ASM]${C_RESET}   $s\n" "$<";
-quiet_LD  = $(Q)printf "  ${C_LD}[LD]${C_RESET}   $s\n" "$@";
+quiet_CXX = $(Q)printf "  ${C_CXX}[C++]${C_RESET}   %s\n" "$<";
+quiet_ASM = $(Q)printf "  ${C_ASM}[ASM]${C_RESET}   %s\n" "$<";
+quiet_LD  = $(Q)printf "  ${C_LD}[LD]${C_RESET}   %s\n" "$@";
 
 SRCS :=
 CPPSRCS :=
@@ -124,20 +126,19 @@ $(BUILD_DIR)/%.o: %.asm
 	@mkdir -p $(dir $@)
 	$(quiet_ASM) $(NASM) -f elf64 $< -o $@
 
-
 $(KERNEL): $(OBJS)
 	$(quiet_LD) $(LD) -T kernel/arch/x86_64/linker.ld -nostdlib -m elf_x86_64 -o $@ $(OBJS)
 
 iso: $(KERNEL)
-	rm -rf iso
-	mkdir -p iso/boot
-	cp $(KERNEL) iso/boot/kernel.elf
-	cp limine/limine-bios.sys iso/boot/
-	cp limine/limine-bios-cd.bin iso/boot/
-	cp limine/limine-uefi-cd.bin iso/boot/
-	cp limine/BOOTX64.EFI iso/boot/
-	cp limine.conf iso/limine.conf
-	xorriso -as mkisofs \
+	@rm -rf iso
+	@mkdir -p iso/boot
+	@cp $(KERNEL) iso/boot/kernel.elf
+	@cp limine/limine-bios.sys iso/boot/
+	@cp limine/limine-bios-cd.bin iso/boot/
+	@cp limine/limine-uefi-cd.bin iso/boot/
+	@cp limine/BOOTX64.EFI iso/boot/
+	@cp limine.conf iso/limine.conf
+	@xorriso -as mkisofs \
 		-b boot/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
 		--efi-boot boot/limine-uefi-cd.bin \
@@ -148,25 +149,25 @@ iso: $(KERNEL)
 		-o termuos.iso
 
 run: iso disk.img tools/tfs_write
-	./tools/tfs_write disk.img apps/HelloGui /mnt/HelloGui.tapp
-	qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
+	@./tools/tfs_write disk.img apps/HelloGui /mnt/HelloGui.tapp
+	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \
 		-drive file=disk.img,format=raw,if=ide \
 		-serial stdio
 
 disk.img: tools/mkfs_tfs
-	./tools/mkfs_tfs disk.img 64
+	@./tools/mkfs_tfs disk.img 64
 
 tools/mkfs_tfs: tools/mkfs_tfs.c
-	cc -O2 -o tools/mkfs_tfs tools/mkfs_tfs.c
+	@cc -O2 -o tools/mkfs_tfs tools/mkfs_tfs.c
 
 tools/tfs_write:
-	cc -O2 -o tools/tfs_write tools/tfs_write.c
+	@cc -O2 -o tools/tfs_write tools/tfs_write.c
 
 limine:
 	git clone https://github.com/limine-bootloader/limine.git \
 		--branch=v8.x-binary --depth=1
 
 clean:
-	rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img tools/mkfs_tfs tools/tfs_write
+	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img tools/mkfs_tfs tools/tfs_write
