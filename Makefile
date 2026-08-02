@@ -5,6 +5,25 @@ NASM = nasm
 
 BUILD_DIR = kbuild
 
+v ?= $(VERBOSE)
+ifeq ($(V),1)
+	Q = @
+endif
+
+# Colours
+ifeq ($(shell [ -t 1 ] && echo 1),1)
+	C_C = \033[1;32m
+	C_CXX = \033[1;36m
+	C_ASM = \033[1;33m
+	C_LD = \033[1;35m
+	C_RESET = \033[0m
+endif
+
+quiet_C   = $(Q)printf "  ${C_C}[C]${C_RESET}     %s\n" "$<";
+quiet_CXX = $(Q)printf "  ${C_CXX}[C++]${C_RESET}   $s\n" "$<";
+quiet_ASM = $(Q)printf "  ${C_ASM}[ASM]${C_RESET}   $s\n" "$<";
+quiet_LD  = $(Q)printf "  ${C_LD}[LD]${C_RESET}   $s\n" "$@";
+
 SRCS :=
 CPPSRCS :=
 
@@ -95,19 +114,19 @@ all: iso
 
 $(BUILD_DIR)/%.o: %.c $(CONFIG_HEADER)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(quiet_C) $(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.cpp $(CONFIG_HEADER)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(quiet_CXX) $(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.asm
 	@mkdir -p $(dir $@)
-	$(NASM) -f elf64 $< -o $@
+	$(quiet_ASM) $(NASM) -f elf64 $< -o $@
 
 
 $(KERNEL): $(OBJS)
-	$(LD) -T kernel/arch/x86_64/linker.ld -nostdlib -m elf_x86_64 -o $@ $(OBJS)
+	$(quiet_LD) $(LD) -T kernel/arch/x86_64/linker.ld -nostdlib -m elf_x86_64 -o $@ $(OBJS)
 
 iso: $(KERNEL)
 	rm -rf iso
@@ -131,7 +150,7 @@ iso: $(KERNEL)
 run: iso disk.img tools/tfs_write
 	./tools/tfs_write disk.img apps/HelloGui /mnt/HelloGui.tapp
 	qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
-		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \
 		-drive file=disk.img,format=raw,if=ide \
 		-serial stdio
