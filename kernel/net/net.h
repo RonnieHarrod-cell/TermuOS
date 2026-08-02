@@ -60,6 +60,7 @@ typedef struct
 } __attribute__((packed)) ip4_hdr_t;
 
 #define IP_PROTO_ICMP 1
+#define IP_PROTO_TCP 6
 #define IP_PROTO_UDP 17
 
 // ICMP header
@@ -81,6 +82,20 @@ typedef struct
     uint16_t checksum;
 } __attribute__((packed)) udp_hdr_t;
 
+// TCP header
+typedef struct
+{
+    uint16_t src_port;
+    uint16_t dst_port;
+    uint32_t seq;
+    uint32_t ack;
+    uint8_t offset_reserved;
+    uint8_t flags;
+    uint16_t window;
+    uint16_t checksum;
+    uint16_t urgent;
+} __attribute__((packed)) tcp_hdr_t;
+
 // Network interface
 typedef struct
 {
@@ -99,6 +114,13 @@ void net_receive(const void *data, size_t len); // called by driver on packet rx
 // Send helpers
 void net_send_arp_request(ip4_t target_ip);
 void net_send_icmp_echo(ip4_t dst, uint16_t id, uint16_t seq);
+int net_send_tcp(ip4_t dst, uint16_t src_port, uint16_t dst_port,
+                 uint32_t seq, uint32_t ack, uint8_t flags,
+                 const void *data, size_t len);
+void net_send_smtp(ip4_t dst, uint16_t dst_port,
+                   const char *helo, const char *from,
+                   const char *to, const char *subject,
+                   const char *body);
 void net_send_udp(ip4_t dst, uint16_t src_port, uint16_t dst_port,
                   const void *data, size_t len);
 

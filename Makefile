@@ -117,7 +117,8 @@ iso: $(KERNEL)
 run: iso disk.img tools/tfs_write
 	./tools/tfs_write disk.img apps/HelloGui /mnt/HelloGui.tapp
 	qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
-		-netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
+		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+              -device virtio-net-pci,netdev=net0 \
 		-drive file=disk.img,format=raw,if=ide \
 		-serial stdio
 

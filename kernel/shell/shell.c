@@ -126,6 +126,22 @@ static int sh_strlen(const char *s)
         n++;
     return n;
 }
+static int sh_atoi(const char *s)
+{
+    int value = 0;
+    int sign = 1;
+    if (*s == '-')
+    {
+        sign = -1;
+        s++;
+    }
+    while (*s >= '0' && *s <= '9')
+    {
+        value = value * 10 + (*s - '0');
+        s++;
+    }
+    return value * sign;
+}
 static int sh_strcmp(const char *a, const char *b)
 {
     while (*a && *b && *a == *b)
@@ -255,7 +271,7 @@ static void cmd_help(int argc, char **argv)
     kprintf("Commands: help clear echo uname uptime mem threads\n");
     kprintf("          ls cd pwd cat write touch mkdir rm reboot shutdown\n");
     kprintf("          exec\n");
-    kprintf("          ifconfig ping arp\n");
+    kprintf("          ifconfig ping arp smtp\n");
     kprintf("          obdir\n");
 }
 
@@ -534,6 +550,24 @@ static void cmd_ifconfig(int argc, char **argv)
     kprintf("      GW  " IP_FMT "\n", IP_ARGS(netif.gateway));
 }
 
+static void parse_ip_arg(const char *s, ip4_t *dst)
+{
+    int octet = 0, val = 0;
+    dst->b[0] = dst->b[1] = dst->b[2] = dst->b[3] = 0;
+    while (*s)
+    {
+        if (*s >= '0' && *s <= '9')
+            val = val * 10 + (*s - '0');
+        else if (*s == '.')
+        {
+            dst->b[octet++] = val;
+            val = 0;
+        }
+        s++;
+    }
+    dst->b[octet] = val;
+}
+
 static void cmd_ping(int argc, char **argv)
 {
     if (argc < 2)
@@ -542,20 +576,7 @@ static void cmd_ping(int argc, char **argv)
         return;
     }
     ip4_t dst = {0};
-    const char *s = argv[1];
-    int octet = 0, val = 0;
-    while (*s)
-    {
-        if (*s >= '0' && *s <= '9')
-            val = val * 10 + (*s - '0');
-        else if (*s == '.')
-        {
-            dst.b[octet++] = val;
-            val = 0;
-        }
-        s++;
-    }
-    dst.b[octet] = val;
+    parse_ip_arg(argv[1], &dst);
     kprintf("ping: " IP_FMT "\n", IP_ARGS(dst));
     net_send_icmp_echo(dst, 1, 1); /* sends ARP if needed */
     /* poll RX while waiting - IRQ may not fire without MSI-X */
@@ -574,6 +595,69 @@ static void cmd_arp(int argc, char **argv)
     (void)argv;
     kprintf("arp: requesting gateway " IP_FMT "\n", IP_ARGS(netif.gateway));
     net_send_arp_request(netif.gateway);
+}
+
+static void cmd_smtp(int argc, char **argv)
+{
+    if (argc < 6)
+    {
+        kprintf("smtp: usage: smtp <server-ip> [port] <from> <to> <subject> <body>\n");
+        return;
+    }
+
+    ip4_t dst = {0};
+    parse_ip_arg(argv[1], &dst);
+
+    int port = 587;
+    const char *from;
+    const char *to;
+    const char *subject;
+    int body_start;
+
+    if (argc == 6)
+    {
+        from = argv[2];
+        to = argv[3];
+        subject = argv[4];
+        body_start = 5;
+    }
+    else
+    {
+        port = sh_atoi(argv[2]);
+        if (port <= 0)
+        {
+            kprintf("smtp: invalid port %s\n", argv[2]);
+            return;
+        }
+        from = argv[3];
+        to = argv[4];
+        subject = argv[5];
+        body_start = 6;
+    }
+
+    char body[160];
+    body[0] = '\0';
+    int off = 0;
+    for (int i = body_start; i < argc; i++)
+    {
+        int len = sh_strlen(argv[i]);
+        for (int j = 0; j < len && off < (int)sizeof(body) - 2; j++)
+            body[off++] = argv[i][j];
+        if (i < argc - 1 && off < (int)sizeof(body) - 1)
+            body[off++] = ' ';
+    }
+    body[off] = '\0';
+
+    kprintf("smtp: sending plain SMTP payload to %s:%d\n", argv[1], port);
+    kprintf("smtp: modern providers like Gmail usually require TLS/auth; this build does not implement that yet\n");
+    net_send_smtp(dst, (uint16_t)port, "termuos", from, to, subject, body);
+    for (volatile int i = 0; i < 500; i++)
+    {
+        virtio_net_poll();
+        for (volatile int j = 0; j < 100000; j++)
+            ;
+    }
+    kprintf("smtp: transmit attempt complete; any server replies will be shown above if received\n");
 }
 
 // ─── PID ─────────────────────────────────────────────────────────────────
@@ -756,6 +840,7 @@ static const command_t commands[] = {
     {"ifconfig", cmd_ifconfig},
     {"ping", cmd_ping},
     {"arp", cmd_arp},
+    {"smtp", cmd_smtp},
     {"pid", cmd_pid},
     {"sleep", cmd_sleep},
     {"yield", cmd_yield},
