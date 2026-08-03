@@ -5,6 +5,7 @@
 #include "drivers/video/fb.h"
 #include "drivers/video/terminal.h"
 #include "drivers/input/keyboard.h"
+#include "drivers/input/mouse.h"
 #include "arch/x86_64/idt.h"
 #include "arch/x86_64/gdt.h"
 #include "arch/x86_64/pit.h"
@@ -70,9 +71,6 @@ void kernel_main(void)
     terminal_set_offset(0, 0);
     fb_clear(0x0D0D0D);
 
-    gui_init(fb);
-    gui_add_test_window();
-
     gdt_init();
     tss_set_kernel_stack(gdt_get_exception_stack());
     idt_init(GDT_KERNEL_CODE);
@@ -83,6 +81,7 @@ void kernel_main(void)
     heap_init();
     cxx_init();
     keyboard_init();
+    mouse_init();
 
     vfs_init();
     vfs_node_t *root = ramfs_create_root();
@@ -126,6 +125,9 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
     
+    gui_init(fb);
+    thread_create("gui", gui_thread_entry, proc_kernel());
+    gui_add_test_window();
     gui_update();
 
     process_t *shell_proc = proc_create("shell");

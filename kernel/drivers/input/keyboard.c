@@ -1,6 +1,5 @@
 #include "keyboard.h"
 #include "../../arch/x86_64/idt.h"
-#include "../../lib/printf.h"
 #include <stdint.h>
 
 #define KBD_DATA 0x60
@@ -284,97 +283,93 @@ static inline void outb(uint16_t port, uint8_t val)
     __asm__ volatile("outb %0,%1" ::"a"(val), "Nd"(port));
 }
 
+#define KBD_BUF_SIZE 64
+static volatile char kbd_buf[KBD_BUF_SIZE];
+static volatile int  kbd_head = 0;
+static volatile int  kbd_tail = 0;
+
+static void kbd_push(char c)
+{
+    int next = (kbd_head + 1) % KBD_BUF_SIZE;
+    if (next == kbd_tail)
+        return;
+    kbd_buf[kbd_head] = c;
+    kbd_head = next;
+}
+
+static void keyboard_irq(registers_t *r)
+{
+    (void)r;
+
+    uint8_t status = inb(KBD_STATUS);
+    if (!(status & 0x01))
+        return;
+
+    if (status & 0x20)
+        return;
+
+    uint8_t sc = inb(KBD_DATA);
+
+    if (sc & 0x80)
+    {
+        uint8_t rel = sc & 0x7f;
+        if (rel == 0x2a || rel == 0x36)
+            shift = 0;
+        return;
+    }
+
+    if (sc == 0x2a || sc == 0x36) { shift = 1; return; }
+    if (sc == 0x3a)               { caps = !caps; return; }
+    if (sc == 0x1d || sc == 0x38) return;
+    if (sc >= 128)                return;
+
+    int upper = shift ^ caps;
+    char c = upper ? sc_shifted[sc] : sc_normal[sc];
+    if (c)
+        kbd_push(c);
+}
+
 void keyboard_init(void)
 {
+    /* flush */
     while (inb(KBD_STATUS) & 0x01)
         inb(KBD_DATA);
 
-    outb(KBD_STATUS, 0xAD);
-    for (volatile int i = 0; i < 10000; i++)
-        ;
-    outb(KBD_STATUS, 0xA7);
-    for (volatile int i = 0; i < 10000; i++)
-        ;
-
-    // flush again
-    while (inb(KBD_STATUS) & 0x01)
-        inb(KBD_DATA);
-
-    outb(KBD_STATUS, 0x20);
-    while (!(inb(KBD_STATUS) & 0x01))
-        ;
-    uint8_t config = inb(KBD_DATA);
-    config |= 0x01;
-    config |= 0x02;
-    config &= ~0x20;
-    outb(KBD_STATUS, 0x60);
-    while (inb(KBD_STATUS) & 0x02)
-        ;
-    outb(KBD_DATA, config);
-
+    /* enable keyboard interface */
     outb(KBD_STATUS, 0xAE);
     for (volatile int i = 0; i < 10000; i++)
         ;
 
-    outb(KBD_STATUS, 0xA8);
-    for (volatile int i = 0; i < 10000; i++)
+    /* enable IRQ1 in controller config (keep mouse bits alone if already set) */
+    outb(KBD_STATUS, 0x20);
+    while (!(inb(KBD_STATUS) & 0x01))
         ;
+    uint8_t cfg = inb(KBD_DATA);
+    cfg |= 0x01;          /* keyboard IRQ */
+    cfg &= ~0x10;         /* keyboard clock on */
+    outb(KBD_STATUS, 0x60);
+    while (inb(KBD_STATUS) & 0x02)
+        ;
+    outb(KBD_DATA, cfg);
 
     while (inb(KBD_STATUS) & 0x01)
         inb(KBD_DATA);
+
+    kbd_head = kbd_tail = 0;
+    idt_register_irq(1, keyboard_irq);  /* IRQ1 = keyboard */
 }
 
 int keyboard_haschar(void)
 {
-    uint8_t status = inb(KBD_STATUS);
-    // Data available AND not mouse data (bit 5 must be 0 for keyboard)
-    return (status & 0x01) && !(status & 0x20);
+    return kbd_head != kbd_tail;
 }
 
 char keyboard_getchar(void)
 {
-    while (1)
-    {
-        while (!(inb(KBD_STATUS) & 0x01))
-            ;
+    while (kbd_head == kbd_tail)
+        __asm__ volatile("hlt"); // wait for interrupt
 
-        // Check AUX flag (bit 5) - skip if this is mouse data, not keyboard
-        uint8_t status = inb(KBD_STATUS);
-        if (status & 0x20)
-        {
-            // This is mouse data, skip it
-            inb(KBD_DATA);
-            continue;
-        }
-
-        uint8_t sc = inb(KBD_DATA);
-
-        if (sc & 0x80)
-        {
-            uint8_t rel = sc & 0x7f;
-            if (rel == 0x2a || rel == 0x36)
-                shift = 0;
-            continue;
-        }
-
-        if (sc == 0x2a || sc == 0x36)
-        {
-            shift = 1;
-            continue;
-        }
-        if (sc == 0x3a)
-        {
-            caps = !caps;
-            continue;
-        }
-        if (sc == 0x1d || sc == 0x38)
-            continue;
-        if (sc >= 128)
-            continue;
-
-        int upper = shift ^ caps;
-        char c = upper ? sc_shifted[sc] : sc_normal[sc];
-        if (c)
-            return c;
-    }
+    char c = kbd_buf[kbd_tail];
+    kbd_tail = (kbd_tail + 1) % KBD_BUF_SIZE;
+    return c;
 }
