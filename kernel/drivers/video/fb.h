@@ -19,6 +19,8 @@ extern "C"
     void fb_draw_hline(uint64_t x, uint64_t y, uint64_t len, uint32_t colour);
     void fb_draw_vline(uint64_t x, uint64_t y, uint64_t len, uint32_t colour);
 
+    uint32_t fb_getpixel(uint64_t x, uint64_t y);
+
 #ifdef __cplusplus
 }
 #endif

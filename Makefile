@@ -56,11 +56,7 @@ SRCS += \
        kernel/lib/printf.c \
        kernel/lib/string.c
 
-CPPSRCS += kernel/lib/cxxabi.cpp \
-	kernel/gui/src/Graphics.cpp \
-	kernel/gui/src/Window.cpp \
-	kernel/gui/src/GUI.cpp \
-	kernel/gui/src/gui_c.cpp
+CPPSRCS += kernel/lib/cxxabi.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \

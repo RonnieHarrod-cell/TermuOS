@@ -78,3 +78,12 @@ void fb_draw_rect(uint64_t x, uint64_t y, uint64_t w, uint64_t h, uint32_t colou
     fb_draw_vline(x, y, h, colour);
     fb_draw_vline(x + w - 1, y, h, colour);
 }
+
+uint32_t fb_getpixel(uint64_t x, uint64_t y)
+{
+    if (!_fb || x >= _fb->width || y >= _fb->height)
+        return 0;
+    uint8_t *base = (uint8_t *)_fb->address;
+    uint32_t *row = (uint32_t *)(base + y * _fb->pitch);
+    return row[x];
+}

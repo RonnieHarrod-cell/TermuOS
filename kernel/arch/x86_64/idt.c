@@ -89,6 +89,12 @@ static const char *exception_names[32] = {
 // Called from isr.asm for both exceptions and IRQs
 void exception_handler(registers_t *r)
 {
+    if (r->vector == 14)
+    {
+        uint64_t cr2;
+        __asm__ volatile("movq %%cr2, %0" : "=r"(cr2));
+        kprintf("   CR2 (fault addr): 0x%x\n", cr2);
+    }
     if (r->vector >= 32 && r->vector < 48)
     {
         uint8_t irq = r->vector - 32;

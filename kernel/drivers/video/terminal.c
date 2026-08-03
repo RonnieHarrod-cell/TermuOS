@@ -7,6 +7,15 @@
 #define FONT_W 8
 #define FONT_H 16
 
+#define TERM_MAX_COLS 160
+#define TERM_MAX_ROWS 60
+
+static char cell_ch[TERM_MAX_ROWS][TERM_MAX_COLS];
+static uint32_t cell_fg[TERM_MAX_ROWS][TERM_MAX_COLS];
+static uint32_t cell_bg[TERM_MAX_ROWS][TERM_MAX_COLS];
+static int grid_cols = 0;
+static int grid_rows = 0;
+
 static uint64_t term_offset_x = 0;
 static uint64_t term_offset_y = 0;
 
@@ -162,8 +171,29 @@ static void fill_rect(int px, int py, int w, int h, uint32_t colour)
 // Scrolling
 // Move the terminal contents upward while keeping the viewport offset in mind.
 
+static void grid_scroll_up(void)
+{
+    for (int r = 0; r < grid_rows - 1; r++)
+    {
+        for (int c = 0; c < grid_cols; c++)
+        {
+            cell_ch[r][c] = cell_ch[r + 1][c];
+            cell_fg[r][c] = cell_fg[r + 1][c];
+            cell_bg[r][c] = cell_bg[r + 1][c];
+        }
+    }
+    for (int c = 0; c < grid_cols; c++)
+    {
+        cell_ch[grid_rows - 1][c] = ' ';
+        cell_fg[grid_rows - 1][c] = _fg;
+        cell_bg[grid_rows - 1][c] = _bg;
+    }
+}
+
 static void scroll_up(void)
 {
+    grid_scroll_up();
+
     struct limine_framebuffer *fb = fb_get();
     if (!fb)
         return;
@@ -174,23 +204,22 @@ static void scroll_up(void)
     int fb_w = (int)fb->width;
 
     uint8_t *base = (uint8_t *)fb->address;
+int right = (int)term_offset_x + (int)_width;
+    if (right > (int)fb->width)
+        right = (int)fb->width;
 
-    // Move each row up by one line inside the terminal area.
     for (int y = top; y < bot - line; y++)
     {
         uint32_t *dst = (uint32_t *)(base + (uint64_t)y * fb->pitch);
         uint32_t *src = (uint32_t *)(base + (uint64_t)(y + line) * fb->pitch);
-        for (int x = (int)term_offset_x;
-             x < (int)term_offset_x + fb_w; x++)
+        for (int x = (int)term_offset_x; x < right; x++)
             dst[x] = src[x];
     }
 
-    // Clear the last line.
     for (int y = bot - line; y < bot; y++)
     {
         uint32_t *row = (uint32_t *)(base + (uint64_t)y * fb->pitch);
-        for (int x = (int)term_offset_x;
-             x < (int)term_offset_x + fb_w; x++)
+        for (int x = (int)term_offset_x; x < right; x++)
             row[x] = _bg;
     }
 }
@@ -222,8 +251,29 @@ void terminal_set_size(uint64_t w, uint64_t h)
     _height = h;
     _cols = ((int)w - PADDING * 2) / FONT_W;
     _rows = ((int)h - PADDING * 2) / FONT_H;
+    if (_cols > TERM_MAX_COLS) _cols = TERM_MAX_COLS;
+    if (_rows > TERM_MAX_ROWS) _rows = TERM_MAX_ROWS;
+    if (_cols < 1) _cols = 1;
+    if (_rows < 1) _rows = 1;
+    grid_cols = _cols;
+    grid_rows = _rows;
+
+    for (int r = 0; r < grid_rows; r++)
+        for (int c = 0; c < grid_cols; c++)
+        {
+            cell_ch[r][c] = ' ';
+            cell_fg[r][c] = _fg;
+            cell_bg[r][c] = _bg;
+        }
+
     _cx = PADDING;
     _cy = PADDING;
+}
+
+void terminal_bind(int x, int y, int w, int h)
+{
+    terminal_set_offset((uint64_t)x, (uint64_t)y);
+    terminal_set_size((uint64_t)w, (uint64_t)h);
 }
 
 void terminal_set_fg(uint8_t r, uint8_t g, uint8_t b)
@@ -272,6 +322,14 @@ void terminal_putchar(char c)
         if (_cx > PADDING)
         {
             _cx -= FONT_W;
+            int col = (_cx - PADDING) / FONT_W;
+            int row = (_cy - PADDING) / FONT_H;
+            if (row >= 0 && row < grid_rows && col >= 0 && col < grid_cols)
+            {
+                cell_ch[row][col] = ' ';
+                cell_fg[row][col] = _fg;
+                cell_bg[row][col] = _bg;
+            }
             draw_char(_cx, _cy, ' ', _fg, _bg);
         }
         return;
@@ -286,13 +344,27 @@ void terminal_putchar(char c)
 
     if (c == '\f')
     {
-        /* form-feed: clear only the terminal area */
+        for (int r = 0; r < grid_rows; r++)
+            for (int c2 = 0; c2 < grid_cols; c2++)
+            {
+                cell_ch[r][c2] = ' ';
+                cell_fg[r][c2] = _fg;
+                cell_bg[r][c2] = _bg;
+            }
         clear_terminal_area();
         _cx = PADDING;
         _cy = PADDING;
         goto redraw_cursor;
     }
 
+    int col = (_cx - PADDING) / FONT_W;
+    int row = (_cy - PADDING) / FONT_H;
+    if (row >= 0 && row < grid_rows && col >= 0 && col < grid_cols)
+    {
+        cell_ch[row][col] = c;
+        cell_fg[row][col] = _fg;
+        cell_bg[row][col] = _bg;
+    }
     draw_char(_cx, _cy, c, _fg, _bg);
     _cx += FONT_W;
 
@@ -335,4 +407,23 @@ void terminal_set_size_from_current(void)
     _rows = ((int)_height - PADDING * 2) / FONT_H;
     _cx = PADDING;
     _cy = PADDING;
+}
+
+void terminal_redraw(void)
+{
+    for (int r = 0; r < grid_rows; r++)
+    {
+        for (int c = 0; c < grid_cols; c++)
+        {
+            int px = PADDING + c * FONT_W;
+            int py = PADDING + r * FONT_H;
+            draw_char(px, py, cell_ch[r][c], cell_fg[r][c], cell_bg[r][c]);
+        }
+    }
+
+    if (_cursor_enabled)
+    {
+        draw_cursor(_cx, _cy, _fg);
+        _cursor_visible = 1;
+    }
 }

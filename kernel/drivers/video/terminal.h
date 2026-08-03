@@ -11,3 +11,6 @@ void terminal_cursor_tick(void);
 
 void terminal_set_offset(uint64_t x, uint64_t y);
 void terminal_set_size_from_current(void);
+
+void terminal_redraw(void);
+void terminal_bind(int x, int y, int w, int h);

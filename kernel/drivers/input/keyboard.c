@@ -367,7 +367,14 @@ int keyboard_haschar(void)
 char keyboard_getchar(void)
 {
     while (kbd_head == kbd_tail)
+    {
+        uint8_t status = inb(KBD_STATUS);
+        if ((status & 0x01) && !(status & 0x20))
+        {
+            __asm__ volatile("sti");
+        }
         __asm__ volatile("hlt"); // wait for interrupt
+    }
 
     char c = kbd_buf[kbd_tail];
     kbd_tail = (kbd_tail + 1) % KBD_BUF_SIZE;
