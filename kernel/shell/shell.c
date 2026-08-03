@@ -1,6 +1,7 @@
 #include "shell.h"
 #include "../drivers/video/terminal.h"
 #include "../drivers/input/keyboard.h"
+#include "../drivers/input/mouse.h"
 #include "../drivers/net/virtio_net.h"
 #include "../mm/pmm.h"
 #include "../mm/heap.h"

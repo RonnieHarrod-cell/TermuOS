@@ -21,6 +21,56 @@ bool GUI::add_window(Window *w)
     return true;
 }
 
+void GUI::set_mouse(int x, int y)
+{
+    mouse_x_ = x;
+    mouse_y_ = y;
+}
+
+void GUI::draw_cursor()
+{
+    if (!mouse_visible_)
+        return;
+
+    // Simple arrow cursor (11x16-ish)
+    static const char *shape[] = {
+        "X          ",
+        "XX         ",
+        "X.X        ",
+        "X..X       ",
+        "X...X      ",
+        "X....X     ",
+        "X.....X    ",
+        "X......X   ",
+        "X.......X  ",
+        "X........X ",
+        "X.....XXXXX",
+        "X..X..X    ",
+        "X.X X..X   ",
+        "XX  X..X   ",
+        "X    X..X  ",
+        "     X..X  ",
+        "      XX   ",
+    };
+    const int rows = 17;
+    const int cols = 11;
+
+    uint32_t white = gfx.colour(0xFF, 0xFF, 0xFF);
+    uint32_t black = gfx.colour(0x00, 0x00, 0x00);
+
+    for (int row = 0; row < rows; row++)
+    {
+        for (int col = 0; col < cols; col++)
+        {
+            char c = shape[row][col];
+            if (c == ' ')
+                continue;
+            uint32_t colr = (c == 'X') ? black : white;
+            gfx.put_pixel(mouse_x_ + col, mouse_y_ + row, colr);
+        }
+    }
+}
+
 void GUI::update()
 {
     // Clear desktop
@@ -32,4 +82,6 @@ void GUI::update()
         if (windows_[i] && windows_[i]->visible)
             windows_[i]->draw(gfx);
     }
+
+    draw_cursor();
 }

@@ -64,6 +64,7 @@ CPPSRCS += kernel/lib/cxxabi.cpp \
 
 SRCS += \
        kernel/drivers/input/keyboard.c \
+	   kernel/drivers/input/mouse.c \
        kernel/sched/scheduler.c
 
 SRCS += kernel/proc/process.c

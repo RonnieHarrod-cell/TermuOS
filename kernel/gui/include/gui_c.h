@@ -12,6 +12,11 @@ extern "C"
     void gui_update(void);
     void gui_add_test_window(void);
 
+    void gui_set_mouse_pos(int x, int y);
+    void gui_handle_mouse(void); /* poll mouse + redraw cursor */
+
+    void gui_thread_entry(void);
+
 #ifdef __cplusplus
 }
 #endif
