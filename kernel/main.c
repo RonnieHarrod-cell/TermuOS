@@ -28,6 +28,8 @@
 #include "tlib/tlib_bundle.h"
 #include "tlib/exec.h"
 
+#include "gui/include/gui_c.h"
+
 LIMINE_BASE_REVISION(3);
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
@@ -67,6 +69,9 @@ void kernel_main(void)
     terminal_set_size(fb->width, fb->height);
     terminal_set_offset(0, 0);
     fb_clear(0x0D0D0D);
+
+    gui_init(fb);
+    gui_add_test_window();
 
     gdt_init();
     tss_set_kernel_stack(gdt_get_exception_stack());
@@ -120,6 +125,8 @@ void kernel_main(void)
 
     pci_init();
     virtio_net_init();
+    
+    gui_update();
 
     process_t *shell_proc = proc_create("shell");
     if (!shell_proc)
