@@ -57,6 +57,10 @@ SRCS += \
        kernel/lib/string.c
 
 CPPSRCS += kernel/lib/cxxabi.cpp
+CPPSRCS += kernel/luna/gfx.cpp
+CPPSRCS += kernel/luna/button.cpp
+CPPSRCS += kernel/luna/window.cpp
+CPPSRCS += kernel/luna/luna.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \
@@ -99,9 +103,6 @@ SRCS += kernel/shell/shell.c
 SRCS += \
        kernel/user/syscall.c \
        kernel/user/userspace.c
-
-SRCS += \
-	kernel/luna/luna.c
 
 OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS)) \
        $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(CPPSRCS)) \
