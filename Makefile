@@ -100,6 +100,9 @@ SRCS += \
        kernel/user/syscall.c \
        kernel/user/userspace.c
 
+SRCS += \
+	kernel/luna/luna.c
+
 OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS)) \
        $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(CPPSRCS)) \
        $(BUILD_DIR)/kernel/arch/x86_64/entry.o \
