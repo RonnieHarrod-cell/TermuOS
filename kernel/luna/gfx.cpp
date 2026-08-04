@@ -1,12 +1,6 @@
 #include "gfx.hpp"
 #include "../drivers/video/fb.h"
-
-/* tiny 8x8 font for ASCII 32..127 — fill with your own or reuse terminal glyphs */
-static const uint8_t font8x8[96][8] = {
-    /* 32 space */
-    {0, 0, 0, 0, 0, 0, 0, 0},
-    /* rest: minimal — use zeros or copy from a known 8x8 set */
-};
+#include "../lib/font.h"
 
 void Gfx::init_from_fb()
 {
@@ -58,13 +52,13 @@ uint32_t Gfx::rgb(uint8_t r, uint8_t g, uint8_t b)
 
 void Gfx::draw_char(int x, int y, char c, uint32_t fg, uint32_t bg)
 {
-    if (c < 32 || c > 127)
+    if (c < 32 || c > 126)
         c = '?';
-    const uint8_t *glyph = font8x8[(unsigned)c - 32];
-    for (int row = 0; row < 8; row++)
+    const uint8_t *glyph = g_font_8x16[(unsigned char)c - 32];
+    for (int row = 0; row < FONT_H; row++)
     {
         uint8_t bits = glyph[row];
-        for (int col = 0; col < 8; col++)
+        for (int col = 0; col < FONT_W; col++)
         {
             uint32_t colr = (bits & (0x80 >> col)) ? fg : bg;
             put_pixel(x + col, y + row, colr);
@@ -82,10 +76,10 @@ void Gfx::draw_text(int x, int y, const char *s, uint32_t fg, uint32_t bg)
         if (*s == '\n')
         {
             cx = x;
-            y += 10;
+            y += FONT_H;
             continue;
         }
         draw_char(cx, y, *s, fg, bg);
-        cx += 8;
+        cx += FONT_W;
     }
 }

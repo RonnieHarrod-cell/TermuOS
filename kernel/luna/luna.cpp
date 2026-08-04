@@ -81,7 +81,7 @@ static void cursor_draw(Gfx &g)
             char ch = shape[r][c];
             if (ch == ' ')
                 continue;
-            g.put_pixel(g_mx + c, g_my + r, ch == 'X' ? 0x000000u : 0xFFFFFFu);
+            g.put_pixel(g_mx + c, g_my + r, ch == 'X' ? 0xFFFFFFu : 0x000000u);
         }
 }
 
