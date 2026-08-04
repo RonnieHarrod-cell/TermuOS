@@ -13,6 +13,10 @@
 #define SYS_MMAP        9
 #define SYS_MUNMAP      11
 #define SYS_BRK         12
+#define SYS_FB_INFO     50
+#define SYS_FB_CLEAR    51
+#define SYS_FB_FILL_RECT 52
+#define SYS_FB_PUTPIXEL 53
 #define SYS_EXIT        60
 #define SYS_GETPID      39
 #define SYS_YIELD       24   /* sched_yield */

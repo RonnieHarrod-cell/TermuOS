@@ -103,8 +103,8 @@ void exception_handler(registers_t *r)
             irq_handlers[irq](r);
         return;
     }
+    uint64_t cr2;
 
-    // It's a CPU exception — panic
     terminal_set_bg(0x99, 0x00, 0x00);
     terminal_set_fg(0xff, 0xff, 0xff);
     terminal_set_size_from_current();
@@ -125,6 +125,7 @@ void exception_handler(registers_t *r)
     kprintf("  R10: 0x%x  R11: 0x%x\n", r->r10, r->r11);
     kprintf("  R12: 0x%x  R13: 0x%x\n", r->r12, r->r13);
     kprintf("  R14: 0x%x  R15: 0x%x\n", r->r14, r->r15);
+    kprintf("  CR2: 0x%x\n", cr2);
     kprintf("\n  Press any key to view details, system halted.\n");
 
     // Wait for keypress so the panic is readable

@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include "../arch/x86_64/gdt.h"
 #include "../drivers/video/terminal.h"
+#include "../drivers/video/fb.h"
 #include "../sched/scheduler.h"
 #include "../fs/vfs.h"
 #include "../mm/pmm.h"
@@ -374,6 +375,46 @@ static uint64_t sys_port_create(uint64_t name_addr)
     return (uint64_t)(p - port_pool);
 }
 
+struct fb_info_user
+{
+    uint64_t width, height, pitch;
+    uint32_t bpp;
+};
+
+static long sys_fb_info(struct fb_info_user *out)
+{
+    if (!out)
+        return -1;
+    struct limine_framebuffer *fb = fb_get();
+    if (!fb)
+        return -1;
+
+    out->width  = fb->width;
+    out->height = fb->height;
+    out->pitch  = fb->pitch;
+    out->bpp    = fb->bpp;
+    return 0;
+}
+
+static long sys_fb_clear(uint32_t colour)
+{
+    fb_clear(colour);
+    return 0;
+}
+
+static long sys_fb_fill_rect(uint64_t x, uint64_t y,
+                             uint64_t w, uint64_t h, uint32_t colour)
+{
+    fb_fill_rect(x, y, w, h, colour);
+    return 0;
+}
+
+static long sys_fb_putpixel(uint64_t x, uint64_t y, uint32_t colour)
+{
+    fb_putpixel(x, y, colour);
+    return 0;
+}
+
 /* ── dispatch ────────────────────────────────────────────────────────────── */
 
 uint64_t syscall_dispatch(uint64_t num, uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f)
@@ -414,6 +455,14 @@ uint64_t syscall_dispatch(uint64_t num, uint64_t a, uint64_t b, uint64_t c, uint
         return sys_port_receive(a, b);
     case SYS_PORT_CREATE:
         return sys_port_create(a);
+    case SYS_FB_INFO:
+        return sys_fb_info((struct fb_info_user *)a);
+    case SYS_FB_CLEAR:
+        return sys_fb_clear((uint32_t)a);
+    case SYS_FB_FILL_RECT:
+        return sys_fb_fill_rect(a, b, c, d, (uint32_t)e);
+    case SYS_FB_PUTPIXEL:
+        return sys_fb_putpixel(a, b, (uint32_t)c);
     default:
         kprintf("[kernel] unknown syscall %llu\n", num);
         return (uint64_t)-1;

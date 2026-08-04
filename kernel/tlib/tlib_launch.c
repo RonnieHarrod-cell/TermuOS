@@ -38,8 +38,15 @@ static void tlib_app_thread_entry(void)
   thread_t *self = thread_current();
   tlib_launch_ctx_t *ctx = (tlib_launch_ctx_t *)self->owner->ob_header->body;
 
+  kprintf("tlib: thread running, entry=0x%x stack=0x%x pm=0x%x\n",
+          ctx->entry, ctx->stack_top, (uint64_t)ctx->pagemap);
+
   tlib_set_perm_mask(ctx->perm_mask);
+
+  kprintf("tlib: about to vmm_switch\n");
   vmm_switch(ctx->pagemap);
+
+  kprintf("tlib: about to jump_userspace\n");
   jump_userspace(ctx->entry, ctx->stack_top);
 
   // This should never return.
