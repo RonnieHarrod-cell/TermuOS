@@ -17,7 +17,7 @@ You should have:
 Clone the repository:
 
 ```bash
-git clone https://github.com/RonnieHarrod-cell/TermuOS.git
+git clone https://github.com/TermuOS-Project/TermuOS.git
 cd TermuOS
 ```
 Build the OS:

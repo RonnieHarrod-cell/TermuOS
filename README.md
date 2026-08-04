@@ -1,102 +1,72 @@
-# TermuOS
+<p align="center">
+  <img src="assets/logo.png" alt="TermuOS Logo" width="180">
+</p>
 
-TermuOS is an open-source x86_64 hobby operating system focused on a Linux-inspired terminal-first environment.
-The operating system is written primarily in C and x86_64 Assembly and is designed for learning low-level systems programming, kernel development, and operating system architecture.
+<h1 align="center">TermuOS</h1>
 
----
+<p align="center">
+  A lightweight, open-source x86_64 operating system built for learning kernel development and low-level programming.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/TermuOS-Project/TermuOS">
+    <img src="https://img.shields.io/github/stars/TermuOS-Project/TermuOS?style=for-the-badge" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/TermuOS-Project/TermuOS/forks">
+    <img src="https://img.shields.io/github/forks/TermuOS-Project/TermuOS?style=for-the-badge" alt="GitHub Forks">
+  </a>
+  <a href="https://github.com/TermuOS-Project/TermuOS/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/TermuOS-Project/TermuOS?style=for-the-badge" alt="License">
+  </a>
+  <a href="https://github.com/TermuOS-Project/TermuOS/commits/main">
+    <img src="https://img.shields.io/github/last-commit/TermuOS-Project/TermuOS?style=for-the-badge" alt="Last Commit">
+  </a>
+</p>
 
-* x86_64 kernel
-* Multitasking scheduler
-* Virtual File System (VFS)
-* Custom shell and terminal
-* Memory management
-* Networking support
-* Modular kernel structure
-* Custom drivers
-* QEMU support
-
----
-
-## Screenshots
-
-> Screenshots coming later.
-
-Example:
-
-```md
-![Boot Screen](screenshots/boot.png)
-```
-
----
-
-## Project Goals
-
-TermuOS aims to:
-
-* teach operating system development
-* explore low-level programming
-* provide a Linux-inspired environment
-* experiment with kernel architecture and system design
-* remain lightweight and educational
+<p align="center">
+  <img src="https://img.shields.io/badge/Architecture-x86__64-2563eb?style=flat-square">
+  <img src="https://img.shields.io/badge/Language-C%20%7C%20Assembly-16a34a?style=flat-square">
+  <img src="https://img.shields.io/badge/Build-Make-f59e0b?style=flat-square">
+  <img src="https://img.shields.io/badge/Boot-Limine-8b5cf6?style=flat-square">
+</p>
 
 ---
 
-## Project Structure
+## ✨ Features
 
-```text
-kernel/         Kernel core
-arch/           Architecture-specific code
-drivers/        Hardware drivers
-fs/             File systems and VFS
-mm/             Memory management
-net/            Networking
-shell/          Shell and terminal
-lib/            Utility libraries
-build/          Build output
-```
+- 🖥️ x86_64 Kernel
+- ⚙️ Multitasking
+- 📁 Virtual File System (VFS)
+- 💻 Terminal & Shell
+- 🧠 Memory Management
+- 🔌 Driver Support
+- 🧩 Modular Architecture
+- 🚀 Runs in QEMU
 
 ---
 
-## Requirements
+## 🚀 Getting Started
 
-You will need:
-
-* clang or gcc
-* nasm
-* make
-* xorriso
-* qemu-system-x86_64
-
-Ubuntu/Debian example:
+### Requirements
 
 ```bash
-sudo apt install clang nasm xorriso qemu-system-x86 make
+sudo apt install clang nasm make xorriso qemu-system-x86
 ```
 
----
-
-## Building
-
-Clone the repository:
+### Clone
 
 ```bash
-git clone https://github.com/RonnieHarrod-cell/TermuOS.git
+git clone https://github.com/TermuOS-Project/TermuOS.git
 cd TermuOS
 ```
 
-Build the OS:
+### Build
 
 ```bash
 make
 ```
 
----
-
-## Running
-
-Run in QEMU:
+### Run
 
 ```bash
 make run
@@ -104,57 +74,50 @@ make run
 
 ---
 
-## Contributing
-
-Contributions are welcome.
-
-Please read:
+## 📂 Project Structure
 
 ```text
-CONTRIBUTING.md
+kernel/      Kernel
+arch/        Architecture-specific code
+drivers/     Hardware drivers
+fs/          File systems
+mm/          Memory management
+net/         Networking
+shell/       Terminal & Shell
+lib/         Libraries
+build/       Build output
 ```
 
-before opening pull requests or issues.
+---
+
+## 🗺️ Roadmap
+
+- User-mode programs
+- ELF executable loader
+- Improved networking
+- Better filesystem support
+- SMP support
+- GUI
+- Audio
+- Package manager
 
 ---
 
-## Roadmap
+## 🤝 Contributing
 
-Planned features include:
-
-* User-mode programs
-* ELF executable loader
-* Improved networking stack
-* Better filesystem support
-* SMP support
-* GUI experiments
-* Audio drivers
-* Package management
-* System calls expansion
+Contributions, bug reports, and feature suggestions are always welcome!
 
 ---
 
-## License
+## 📜 License
 
-TermuOS is licensed under the MIT License.
-
-See:
-
-```text
-LICENSE
-```
-
-for more information.
+This project is licensed under the **MIT License**.
 
 ---
 
-## Links
-
-* Website: https://termuos.netlify.app
-* GitHub: https://github.com/RonnieHarrod-cell/TermuOS
-
----
-
-## Author
-
-Created by Ronnie Harrod.
+<p align="center">
+  <b>Made with ❤️ by TermuOS Team</b>
+  <br><br>
+  <a href="https://github.com/TermuOS-Project/TermuOS">GitHub</a> •
+  <a href="https://termuos.netlify.app">Website</a>
+</p>
