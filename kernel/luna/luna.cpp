@@ -146,7 +146,7 @@ extern "C" void luna_run(void)
 
     while (g_running)
     {
-        bool need = false;
+        bool full = false;
 
         if (mouse_is_dirty())
         {
@@ -167,23 +167,39 @@ extern "C" void luna_run(void)
                 else
                     ev.type = EventType::MouseMove;
                 prev_buttons = st.buttons;
+                full = true; /* click may change button/window */
             }
             else
             {
                 ev.type = EventType::MouseMove;
             }
 
-            cursor_erase(gfx);
-            g_mx = st.x;
-            g_my = st.y;
-
+            /* drag / hover handling may mark dirty */
             if (win.visible)
                 win.on_event(ev);
 
-            /* simple: full redraw when interacting; optimize later */
-            full_redraw();
-            need = true;
-            (void)need;
+            if (win.dirty || lab.dirty || btn.dirty)
+                full = true;
+
+            if (full)
+            {
+                win.dirty = lab.dirty = btn.dirty = false;
+                g_cursor_saved = false;
+                gfx.fill_rect(0, 0, gfx.width(), gfx.height(), 0xFF1A1A2Eu);
+                if (win.visible)
+                    win.paint_tree(gfx);
+                g_mx = st.x;
+                g_my = st.y;
+                cursor_draw(gfx);
+            }
+            else
+            {
+                /* mouse move only — no clear */
+                cursor_erase(gfx);
+                g_mx = st.x;
+                g_my = st.y;
+                cursor_draw(gfx);
+            }
         }
 
         if (keyboard_haschar())

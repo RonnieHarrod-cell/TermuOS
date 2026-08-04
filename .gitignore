@@ -2,3 +2,6 @@ iso/
 kbuild/
 kernel.elf
 termuos.iso
+disk.img
+tools/mkfs_tfs
+tools/tfs_write
