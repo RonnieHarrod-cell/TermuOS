@@ -16,7 +16,6 @@
 #include "../ob/object.h"
 #include "../lib/printf.h"
 #include "../lib/string.h"
-#include "../luna/luna.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -785,13 +784,6 @@ static void cmd_kill(int argc, char **argv)
     kprintf("kill: process %d terminated with code %d\n", pid, exit_code);
 }
 
-static void cmd_luna(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    luna_run();
-}
-
 // ─── Object ─────────────────────────────────────────────────────────────────
 static void cmd_obdir(int argc, char **argv)
 {
@@ -893,7 +885,6 @@ static const command_t commands[] = {
     {"run", cmd_run},
     {"ps", cmd_ps},
     {"kill", cmd_kill},
-    {"luna", cmd_luna},
     {NULL, NULL}};
 
 static void dispatch(char *line)
