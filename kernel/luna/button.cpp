@@ -1,4 +1,5 @@
 #include "button.hpp"
+#include "focus.hpp"
 
 void Button::paint(Gfx &g)
 {
@@ -35,6 +36,7 @@ bool Button::on_event(const Event &e)
 
     if (e.type == EventType::MouseDown && (e.buttons & 1))
     {
+        Focus::clear();
         pressed = true;
         mark_dirty();
         return true;

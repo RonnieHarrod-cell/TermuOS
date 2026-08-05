@@ -44,12 +44,15 @@ public:
 
     virtual void paint(Gfx &g) { (void)g; }
 
+    virtual bool accepts_focus() const { return false; }
+    virtual void on_focus() { mark_dirty(); }
+    virtual void on_blur() { mark_dirty(); }
+
     virtual bool on_event(const Event &e)
     {
         for (int i = child_count - 1; i >= 0; --i)
         {
-            Widget *c = children[i];
-            if (c && c->visible && c->on_event(e))
+            if (children[i] && children[i]->visible && children[i]->on_event(e))
                 return true;
         }
         return false;

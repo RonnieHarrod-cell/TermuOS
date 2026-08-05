@@ -4,6 +4,8 @@
 #include "label.hpp"
 #include "button.hpp"
 #include "events.hpp"
+#include "focus.hpp"
+#include "textfield.hpp"
 
 extern "C"
 {
@@ -130,6 +132,13 @@ extern "C" void luna_run(void)
     btn.on_click_user = nullptr;
     win.add(&btn);
 
+    TextField field;
+    field.x = Window::kBorder + 8;
+    field.y = Window::kBorder + Window::kTitleH + 80;
+    field.w = 280;
+    field.h = 28;
+    win.add(&field);
+
     auto full_redraw = [&]()
     {
         g_cursor_saved = 0;
@@ -174,6 +183,25 @@ extern "C" void luna_run(void)
                 ev.type = EventType::MouseMove;
             }
 
+            if (ev.type == EventType::MouseDown)
+            {
+                bool hit = win.visible && win.contains_screen(ev.x, ev.y);
+                if (hit)
+                {
+                    win.on_event(ev);
+                }
+                else
+                {
+                    Focus::clear();
+                    full = true;
+                }
+            }
+            else
+            {
+                if (win.visible)
+                    win.on_event(ev);
+            }
+
             /* drag / hover handling may mark dirty */
             if (win.visible)
                 win.on_event(ev);
@@ -206,7 +234,25 @@ extern "C" void luna_run(void)
         {
             char c = keyboard_getchar();
             if (c == 27)
+            {
                 g_running = false;
+                continue;
+            }
+
+            Event kev{};
+            kev.type = EventType::KeyDown;
+            kev.key = c;
+            kev.x = g_mx;
+            kev.y = g_my;
+
+            Widget *f = Focus::current();
+            if (f)
+                f->on_event(kev);
+            else if (win.visible)
+                win.on_event(kev);
+
+            if (f && true)
+                full_redraw();
         }
     }
 

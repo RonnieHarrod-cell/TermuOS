@@ -1,4 +1,5 @@
 #include "window.hpp"
+#include "focus.hpp"
 
 void Window::paint(Gfx &g)
 {
@@ -39,6 +40,16 @@ bool Window::on_event(const Event &e)
         dragging_ = true;
         drag_ox_ = e.x - sx;
         drag_oy_ = e.y - sy;
+        return true;
+    }
+
+    if (Widget::on_event(e))
+        return true;
+
+    if (e.type == EventType::MouseDown && contains_screen(e.x, e.y))
+    {
+        Focus::clear();
+        mark_dirty();
         return true;
     }
 

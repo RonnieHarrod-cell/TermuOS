@@ -6,7 +6,8 @@ enum class EventType : uint8_t
     MouseMove,
     MouseDown,
     MouseUp,
-    Key
+    KeyDown,
+    KeyUp
 };
 
 struct Event
@@ -15,4 +16,5 @@ struct Event
     int x, y;
     uint8_t buttons;
     char key;
+    uint8_t keycode;
 };
