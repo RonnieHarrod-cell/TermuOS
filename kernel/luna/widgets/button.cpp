@@ -1,5 +1,5 @@
 #include "button.hpp"
-#include "focus.hpp"
+#include "../focus.hpp"
 
 void Button::paint(Gfx &g)
 {

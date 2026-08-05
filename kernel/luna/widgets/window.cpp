@@ -1,5 +1,5 @@
 #include "window.hpp"
-#include "focus.hpp"
+#include "../focus.hpp"
 
 void Window::paint(Gfx &g)
 {

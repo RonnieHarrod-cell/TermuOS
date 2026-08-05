@@ -1,11 +1,11 @@
 #include "luna.h"
-#include "gfx.hpp"
-#include "window.hpp"
-#include "label.hpp"
-#include "button.hpp"
-#include "events.hpp"
+#include "widgets/gfx.hpp"
+#include "widgets/window.hpp"
+#include "widgets/label.hpp"
+#include "widgets/button.hpp"
+#include "widgets/events.hpp"
 #include "focus.hpp"
-#include "textfield.hpp"
+#include "widgets/textfield.hpp"
 
 extern "C"
 {
