@@ -14,17 +14,22 @@ public:
         y = screen_h - kH;
         w = screen_w;
         h = kH;
+        visible = true;
+        parent = nullptr;
     }
 
     StartMenu *menu = nullptr;
 
-    void paint(Gfx &g) override
+    void paint(Gfx &g)
     {
-        int sx, sy;
-        screen_pos(sx, sy);
+        int sx = x, sy = y;
+        if (parent)
+            screen_pos(sx, sy);
+
+        g.fill_rect(sx, sy, w, h, 0xFF2A2A3Au);
         g.fill_rect(sx + 4, sy + 4, 72, h - 8, 0xFF3A3A5Au);
-        g.draw_text(sx + 12, sy + 10, "Start", 0xFFFFFFFFu, 0xFF3A3A5Au);
-        /* later: window buttons + clock */
+        g.draw_text(sx + 14, sy + 10, "Start", 0xFFFFFFFFu, 0xFF3A3A5Au);
+        g.draw_text(sx + 90, sy + 10, "Luna", 0xFFFFFFFFu, 0xFF2A2A3Au);
     }
 
     bool on_event(const Event &e) override
