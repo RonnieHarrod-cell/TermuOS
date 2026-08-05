@@ -63,6 +63,7 @@ CPPSRCS += kernel/luna/widgets/window.cpp
 CPPSRCS += kernel/luna/luna.cpp
 CPPSRCS += kernel/luna/focus.cpp
 CPPSRCS += kernel/luna/widgets/textfield.cpp
+CPPSRCS += kernel/luna/desktop/startmenu/startmenu.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \

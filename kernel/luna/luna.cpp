@@ -3,9 +3,12 @@
 #include "widgets/window.hpp"
 #include "widgets/label.hpp"
 #include "widgets/button.hpp"
+#include "widgets/textfield.hpp"
 #include "widgets/events.hpp"
 #include "focus.hpp"
-#include "widgets/textfield.hpp"
+#include "desktop/desktop.hpp"
+#include "desktop/wm.hpp"
+#include "desktop/taskbar.hpp"
 
 extern "C"
 {
@@ -30,10 +33,8 @@ static void cursor_erase(Gfx &g)
         return;
     for (int row = 0; row < CURSOR_H; row++)
         for (int col = 0; col < CURSOR_W; col++)
-        {
-            int x = g_omx + col, y = g_omy + row;
-            g.put_pixel(x, y, g_cursor_under[row * CURSOR_W + col]);
-        }
+            g.put_pixel(g_omx + col, g_omy + row,
+                        g_cursor_under[row * CURSOR_W + col]);
     g_cursor_saved = 0;
 }
 
@@ -69,10 +70,8 @@ static void cursor_draw(Gfx &g)
 
     for (int row = 0; row < CURSOR_H; row++)
         for (int col = 0; col < CURSOR_W; col++)
-        {
-            int x = g_mx + col, y = g_my + row;
-            g_cursor_under[row * CURSOR_W + col] = g.get_pixel(x, y);
-        }
+            g_cursor_under[row * CURSOR_W + col] =
+                g.get_pixel(g_mx + col, g_my + row);
     g_cursor_saved = 1;
     g_omx = g_mx;
     g_omy = g_my;
@@ -83,7 +82,8 @@ static void cursor_draw(Gfx &g)
             char ch = shape[r][c];
             if (ch == ' ')
                 continue;
-            g.put_pixel(g_mx + c, g_my + r, ch == 'X' ? 0xFFFFFFu : 0x000000u);
+            g.put_pixel(g_mx + c, g_my + r,
+                        ch == 'X' ? 0xFFFFFFu : 0x000000u);
         }
 }
 
@@ -91,6 +91,17 @@ static void on_btn(void *user)
 {
     (void)user;
     kprintf("luna: button clicked\n");
+}
+
+static bool *g_running_ptr = nullptr;
+static Wm *g_wm = nullptr;
+static Window *g_about = nullptr;
+
+static void action_exit(void *user)
+{
+    (void)user;
+    if (g_running_ptr)
+        *g_running_ptr = false;
 }
 
 extern "C" void luna_run(void)
@@ -105,21 +116,44 @@ extern "C" void luna_run(void)
     g_my = gfx.height() / 2;
     g_running = true;
 
+    /* —— desktop shell —— */
+    Desktop desk;
+    desk.x = 0;
+    desk.y = 0;
+    desk.w = gfx.width();
+    desk.h = gfx.height();
+
+    Wm wm;
+    desk.wm = &wm;
+
+    Taskbar bar;
+    bar.wm = &wm;
+    bar.layout(gfx.width(), gfx.height());
+    desk.taskbar = &bar;
+
+    StartMenu menu;
+    menu.visible = false;
+    menu.open = false;
+    menu.parent = nullptr;
+    menu.add_item("Exit Luna", action_exit, nullptr);
+
+    bar.menu = &menu;
+
+    /* —— demo window + widgets —— */
     Window win;
-    win.x = 100;
-    win.y = 60;
+    win.x = 120;
+    win.y = 80;
     win.w = 420;
-    win.h = 280;
-    win.title = "Luna";
+    win.h = 300;
+    win.title = "Demo - Luna";
+    win.visible = true;
 
     Label lab;
     lab.x = Window::kBorder + 8;
     lab.y = Window::kBorder + Window::kTitleH + 8;
     lab.w = 300;
     lab.h = 20;
-    lab.text = "Hello from Luna widgets";
-    lab.fg = 0xFF000000u;
-    lab.bg = 0xFFE8E8EEu;
+    lab.text = "Luna desktop";
     win.add(&lab);
 
     Button btn;
@@ -129,7 +163,6 @@ extern "C" void luna_run(void)
     btn.h = 28;
     btn.text = "Click me";
     btn.on_click = on_btn;
-    btn.on_click_user = nullptr;
     win.add(&btn);
 
     TextField field;
@@ -139,17 +172,21 @@ extern "C" void luna_run(void)
     field.h = 28;
     win.add(&field);
 
-    auto full_redraw = [&]()
+    wm.add(&win);
+
+    auto composite = [&]()
     {
         g_cursor_saved = 0;
-        gfx.fill_rect(0, 0, gfx.width(), gfx.height(), 0xFF1A1A2Eu);
-        if (win.visible)
-            win.paint_tree(gfx);
+        desk.paint_tree(gfx);
+        wm.paint_all(gfx);
+        bar.paint_tree(gfx);
+        if (menu.open && menu.visible)
+            menu.paint_tree(gfx);
         cursor_draw(gfx);
     };
 
-    full_redraw();
-    kprintf("luna: running — Esc to quit\n");
+    composite();
+    kprintf("luna: desktop running — Esc to quit\n");
 
     uint8_t prev_buttons = 0;
 
@@ -176,53 +213,53 @@ extern "C" void luna_run(void)
                 else
                     ev.type = EventType::MouseMove;
                 prev_buttons = st.buttons;
-                full = true; /* click may change button/window */
+                full = true;
             }
             else
             {
                 ev.type = EventType::MouseMove;
             }
 
-            if (ev.type == EventType::MouseDown)
+            /* ---- hit test (one path only) ---- */
+            if (menu.open && menu.visible && menu.contains_screen(ev.x, ev.y))
             {
-                bool hit = win.visible && win.contains_screen(ev.x, ev.y);
-                if (hit)
-                {
-                    win.on_event(ev);
-                }
-                else
-                {
-                    Focus::clear();
-                    full = true;
-                }
+                menu.on_event(ev);
+                full = true;
+            }
+            else if (bar.contains_screen(ev.x, ev.y))
+            {
+                bar.on_event(ev); /* Start click → menu.toggle(height) */
+                full = true;
+            }
+            else if (Window *hit = wm.hit(ev.x, ev.y))
+            {
+                if (menu.open)
+                    menu.close_menu();
+                if (ev.type == EventType::MouseDown)
+                    wm.raise(hit);
+                hit->on_event(ev);
             }
             else
             {
-                if (win.visible)
-                    win.on_event(ev);
+                if (menu.open && ev.type == EventType::MouseDown)
+                    menu.close_menu();
+                desk.on_event(ev);
+                if (ev.type == EventType::MouseDown)
+                    full = true;
             }
 
-            /* drag / hover handling may mark dirty */
-            if (win.visible)
-                win.on_event(ev);
-
-            if (win.dirty || lab.dirty || btn.dirty)
+            if (win.dirty || desk.dirty || bar.dirty || menu.dirty)
                 full = true;
 
             if (full)
             {
-                win.dirty = lab.dirty = btn.dirty = false;
-                g_cursor_saved = false;
-                gfx.fill_rect(0, 0, gfx.width(), gfx.height(), 0xFF1A1A2Eu);
-                if (win.visible)
-                    win.paint_tree(gfx);
+                win.dirty = desk.dirty = bar.dirty = menu.dirty = false;
                 g_mx = st.x;
                 g_my = st.y;
-                cursor_draw(gfx);
+                composite();
             }
             else
             {
-                /* mouse move only — no clear */
                 cursor_erase(gfx);
                 g_mx = st.x;
                 g_my = st.y;
@@ -235,7 +272,15 @@ extern "C" void luna_run(void)
             char c = keyboard_getchar();
             if (c == 27)
             {
-                g_running = false;
+                if (Focus::current())
+                {
+                    Focus::clear();
+                    composite();
+                }
+                else
+                {
+                    g_running = false;
+                }
                 continue;
             }
 
@@ -245,14 +290,11 @@ extern "C" void luna_run(void)
             kev.x = g_mx;
             kev.y = g_my;
 
-            Widget *f = Focus::current();
-            if (f)
+            if (Widget *f = Focus::current())
+            {
                 f->on_event(kev);
-            else if (win.visible)
-                win.on_event(kev);
-
-            if (f && true)
-                full_redraw();
+                composite();
+            }
         }
     }
 
