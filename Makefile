@@ -146,6 +146,7 @@ iso: $(KERNEL)
 	@cp limine/limine-uefi-cd.bin iso/boot/
 	@cp limine/BOOTX64.EFI iso/boot/
 	@cp limine.conf iso/limine.conf
+	@cp assets/logo.png iso/boot/
 	@xorriso -as mkisofs \
 		-b boot/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
