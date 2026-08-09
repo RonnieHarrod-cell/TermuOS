@@ -29,6 +29,8 @@
 #include "tlib/tlib_bundle.h"
 #include "tlib/exec.h"
 
+#include "luna/luna.h"
+
 LIMINE_BASE_REVISION(3);
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
@@ -122,6 +124,8 @@ void kernel_main(void)
 
     pci_init();
     virtio_net_init();
+
+    luna_run();
 
     process_t *shell_proc = proc_create("shell");
     if (!shell_proc)

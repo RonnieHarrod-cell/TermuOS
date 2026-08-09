@@ -1,6 +1,6 @@
 #include "gfx.hpp"
-#include "../drivers/video/fb.h"
-#include "../lib/font.h"
+#include "../../drivers/video/fb.h"
+#include "../../lib/font.h"
 
 void Gfx::init_from_fb()
 {

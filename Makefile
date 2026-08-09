@@ -57,12 +57,13 @@ SRCS += \
        kernel/lib/string.c
 
 CPPSRCS += kernel/lib/cxxabi.cpp
-CPPSRCS += kernel/luna/gfx.cpp
-CPPSRCS += kernel/luna/button.cpp
-CPPSRCS += kernel/luna/window.cpp
+CPPSRCS += kernel/luna/widgets/gfx.cpp
+CPPSRCS += kernel/luna/widgets/button.cpp
+CPPSRCS += kernel/luna/widgets/window.cpp
 CPPSRCS += kernel/luna/luna.cpp
 CPPSRCS += kernel/luna/focus.cpp
-CPPSRCS += kernel/luna/textfield.cpp
+CPPSRCS += kernel/luna/widgets/textfield.cpp
+CPPSRCS += kernel/luna/desktop/startmenu/startmenu.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \

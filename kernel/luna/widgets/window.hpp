@@ -1,3 +1,4 @@
+#pragma once
 #include "widget.hpp"
 
 class Window : public Widget
