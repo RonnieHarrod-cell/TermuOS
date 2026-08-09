@@ -26,7 +26,7 @@ static inline long syscall3(long n, long a1, long a2, long a3)
 
 void _start(void)
 {
-    const char msg[] = "Hello from userspace!\n";
+    const char msg[] = "Hello from TermuOS!\n";
     syscall3(SYS_WRITE, 1 /* stdout */, (long)msg, sizeof(msg) - 1);
     syscall3(SYS_EXIT, 0, 0, 0);
 

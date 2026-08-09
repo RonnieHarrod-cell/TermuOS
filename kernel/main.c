@@ -10,6 +10,7 @@
 #include "arch/x86_64/idt.h"
 #include "arch/x86_64/gdt.h"
 #include "arch/x86_64/pit.h"
+#include "arch/x86_64/fpu.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "mm/heap.h"
@@ -82,6 +83,7 @@ void kernel_main(void)
     gdt_init();
     tss_set_kernel_stack(gdt_get_exception_stack());
     idt_init(GDT_KERNEL_CODE);
+    fpu_init();
     userspace_init();
 
     pmm_init(memmap_request.response);
