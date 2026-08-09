@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include "../arch/x86_64/gdt.h"
 #include "../drivers/video/terminal.h"
+#include "../drivers/serial/serial.h"
 #include "../drivers/video/fb.h"
 #include "../sched/scheduler.h"
 #include "../fs/vfs.h"
@@ -228,7 +229,10 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
     {
         const char *buf = (const char *)buf_addr;
         for (uint64_t i = 0; i < len; i++)
+        {
             terminal_putchar(buf[i]);
+            serial_putchar(buf[i]);
+        }
         return len;
     }
     if (!proc_check_perm(PERM_FS_WRITE))
@@ -481,8 +485,12 @@ void syscall_init(void)
     }
 
     uint64_t efer = rdmsr(MSR_EFER);
-    efer |= 1;
-    efer &= ~(1ULL << 11);
+    efer |= 1;            // SCE: enable syscall/sysret
+    efer |= (1ULL << 11); // NXE: must stay enabled -- kernel .rodata (see
+                          // linker.ld) and exec.c's VMM_NX user pages both
+                          // rely on the NX bit (PTE bit 63) being valid.
+                          // With NXE=0, bit 63 becomes a reserved bit and
+                          // ANY access to such a page page-faults.
     wrmsr(MSR_EFER, efer);
 
     uint64_t star = ((uint64_t)0x10 << 48) | ((uint64_t)GDT_KERNEL_CODE << 32);

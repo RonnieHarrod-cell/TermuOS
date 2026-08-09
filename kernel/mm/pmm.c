@@ -1,4 +1,5 @@
 #include "pmm.h"
+#include "vmm.h"
 #include "../lib/printf.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -13,28 +14,40 @@
 #define BIT_IDX(bit) ((bit) / BITS_PER_ENTRY)
 #define BIT_OFF(bit) ((bit) % BITS_PER_ENTRY)
 
-static uint64_t *bitmap = NULL; // pointer to bitmap in physical memory
-static size_t bm_size = 0;      // number of uint64_t entries in bitmap
+static uint64_t *bitmap_phys = NULL; // bitmap's PHYSICAL base address
+static size_t bm_size = 0;           // number of uint64_t entries in bitmap
 static size_t total_pages = 0;
 static size_t free_pages = 0;
 static uint64_t highest_addr = 0; // highest usable physical address
 
-// Limine provides physical addresses directly, so we can use them without HHDM during early boot.
-// We access the bitmap through its physical address, which is identity-mapped by Limine.
+// The bitmap must always be dereferenced through the HHDM mapping, never as
+// a raw physical pointer. Limine identity-maps low physical memory only in
+// its own original boot pagemap — vmm_new_pagemap() copies just the
+// higher-half (HHDM/kernel) PML4 entries into new process pagemaps, so once
+// the scheduler switches CR3 to a process's own pagemap, that identity
+// mapping is gone and a raw physical dereference page-faults.
+//
+// Before vmm_init() runs, hhdm_base is still 0, so PHYS_TO_VIRT() is a no-op
+// and this resolves to the same raw physical address — safe, because at
+// that point in boot we're still running under Limine's original pagemap.
+static inline uint64_t *bm(void)
+{
+    return (uint64_t *)PHYS_TO_VIRT(bitmap_phys);
+}
 
 static inline void bitmap_set(size_t bit)
 {
-    bitmap[BIT_IDX(bit)] |= (1ULL << BIT_OFF(bit));
+    bm()[BIT_IDX(bit)] |= (1ULL << BIT_OFF(bit));
 }
 
 static inline void bitmap_clear(size_t bit)
 {
-    bitmap[BIT_IDX(bit)] &= ~(1ULL << BIT_OFF(bit));
+    bm()[BIT_IDX(bit)] &= ~(1ULL << BIT_OFF(bit));
 }
 
 static inline int bitmap_test(size_t bit)
 {
-    return (bitmap[BIT_IDX(bit)] >> BIT_OFF(bit)) & 1;
+    return (bm()[BIT_IDX(bit)] >> BIT_OFF(bit)) & 1;
 }
 
 // Initialization
@@ -64,12 +77,12 @@ void pmm_init(struct limine_memmap_response *memmap)
         struct limine_memmap_entry *e = memmap->entries[i];
         if (e->type == LIMINE_MEMMAP_USABLE && e->length >= bm_bytes)
         {
-            bitmap = (uint64_t *)e->base;
+            bitmap_phys = (uint64_t *)e->base;
             break;
         }
     }
 
-    if (!bitmap)
+    if (!bitmap_phys)
     {
         for (;;)
             __asm__ volatile("hlt");
@@ -77,7 +90,7 @@ void pmm_init(struct limine_memmap_response *memmap)
 
     // Mark every page as used at first.
     for (size_t i = 0; i < bm_size; i++)
-        bitmap[i] = 0xffffffffffffffff;
+        bm()[i] = 0xffffffffffffffff;
 
     // Third pass: mark all usable pages as free.
     for (uint64_t i = 0; i < memmap->entry_count; i++)
@@ -100,7 +113,7 @@ void pmm_init(struct limine_memmap_response *memmap)
     size_t bm_pages = (bm_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
     for (size_t i = 0; i < bm_pages; i++)
     {
-        size_t bit = PAGE_TO_BIT((uint64_t)bitmap + i * PAGE_SIZE);
+        size_t bit = PAGE_TO_BIT((uint64_t)bitmap_phys + i * PAGE_SIZE);
         if (!bitmap_test(bit))
         {
             bitmap_set(bit);
@@ -113,6 +126,7 @@ void pmm_init(struct limine_memmap_response *memmap)
 
 void *pmm_alloc(void)
 {
+    uint64_t *bitmap = bm();
     for (size_t i = 0; i < bm_size; i++)
     {
         if (bitmap[i] == 0xffffffffffffffff)

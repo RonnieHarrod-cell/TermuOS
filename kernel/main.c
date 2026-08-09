@@ -4,6 +4,7 @@
 
 #include "drivers/video/fb.h"
 #include "drivers/video/terminal.h"
+#include "drivers/serial/serial.h"
 #include "drivers/input/keyboard.h"
 #include "drivers/input/mouse.h"
 #include "arch/x86_64/idt.h"
@@ -28,6 +29,7 @@
 #include "ipc/port.h"
 #include "proc/exec.h"
 #include "proc/launch.h"
+#include "user/userspace.h"
 
 #include "luna/luna.h"
 
@@ -59,9 +61,15 @@ __attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_RE
 
 void kernel_main(void)
 {
+    serial_init();
+    serial_write("TermuOS: kernel_main() entered\n");
+
     if (!fb_request.response || fb_request.response->framebuffer_count < 1)
+    {
+        serial_write("TermuOS: no framebuffer response from Limine, halting\n");
         for (;;)
             __asm__ volatile("hlt");
+    }
 
     struct limine_framebuffer *fb = fb_request.response->framebuffers[0];
 
@@ -74,8 +82,8 @@ void kernel_main(void)
     gdt_init();
     tss_set_kernel_stack(gdt_get_exception_stack());
     idt_init(GDT_KERNEL_CODE);
+    userspace_init();
 
-    kprintf("Initializing Memory...\n");
     pmm_init(memmap_request.response);
     vmm_init(hhdm_request.response->offset, read_cr3());
     heap_init();
@@ -101,7 +109,6 @@ void kernel_main(void)
 
     ata_init();
 
-    kprintf("Starting Scheduler...\n");
     ob_init();
     ioman_init();
     ipc_init();

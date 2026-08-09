@@ -89,9 +89,9 @@ static const char *exception_names[32] = {
 // Called from isr.asm for both exceptions and IRQs
 void exception_handler(registers_t *r)
 {
+    uint64_t cr2 = 0;
     if (r->vector == 14)
     {
-        uint64_t cr2;
         __asm__ volatile("movq %%cr2, %0" : "=r"(cr2));
         kprintf("   CR2 (fault addr): 0x%x\n", cr2);
     }
@@ -103,9 +103,8 @@ void exception_handler(registers_t *r)
             irq_handlers[irq](r);
         return;
     }
-    uint64_t cr2;
 
-    terminal_set_bg(0x99, 0x00, 0x00);
+    terminal_set_bg(0x99, 0x00, 0x99);
     terminal_set_fg(0xff, 0xff, 0xff);
     terminal_set_size_from_current();
 
