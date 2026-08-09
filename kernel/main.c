@@ -26,8 +26,8 @@
 #include "ob/object.h"
 #include "io/ioman.h"
 #include "ipc/port.h"
-#include "tlib/tlib_bundle.h"
-#include "tlib/exec.h"
+#include "proc/exec.h"
+#include "proc/launch.h"
 
 #include "luna/luna.h"
 
@@ -125,7 +125,7 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
 
-    luna_run();
+    // luna_run();
 
     process_t *shell_proc = proc_create("shell");
     if (!shell_proc)
