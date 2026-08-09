@@ -25,7 +25,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Architecture-x86__64-2563eb?style=flat-square">
-  <img src="https://img.shields.io/badge/Language-C%20%7C%20Assembly-16a34a?style=flat-square">
+  <img src="https://img.shields.io/badge/Language-C%20%7C%20%20C++%7C%20Assembly-16a34a?style=flat-square">
   <img src="https://img.shields.io/badge/Build-Make-f59e0b?style=flat-square">
   <img src="https://img.shields.io/badge/Boot-Limine-8b5cf6?style=flat-square">
 </p>
