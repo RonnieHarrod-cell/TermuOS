@@ -217,9 +217,24 @@ static uint64_t sys_fstat(uint64_t fd, uint64_t buf_addr)
 
 static uint64_t sys_exit(uint64_t code)
 {
-    kprintf("[kernel] process exited: %u\n", code);
+    thread_t *t = thread_current();
+    process_t *proc = t ? t->owner : NULL;
+
+    kprintf("[kernel] process exited: %d\n", (int)code);
+
+    if (proc && proc != proc_kernel())
+        proc_exit(proc, (int32_t)code);
+
+    __asm__ volatile("cli");
+    if (t)
+        t->state = THREAD_DEAD;
+    __asm__ volatile("sti");
+
+    scheduler_yield();
+
     for (;;)
         __asm__ volatile("hlt");
+
     return 0;
 }
 
