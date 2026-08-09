@@ -7,7 +7,7 @@
 #include "../mm/pmm.h"
 #include "../mm/vmm.h"
 #include "../ipc/port.h"
-#include "../tlib/tlib_bundle.h"
+#include "../proc/launch.h"
 #include "../lib/printf.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -231,14 +231,14 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
             terminal_putchar(buf[i]);
         return len;
     }
-    if (!tlib_check_perm(TLIB_PERM_FS_WRITE))
+    if (!proc_check_perm(PERM_FS_WRITE))
         return (uint64_t)-1;
     return (uint64_t)vfs_write((int)fd, (const void *)buf_addr, (size_t)len);
 }
 
 static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 {
-    if (!tlib_check_perm(TLIB_PERM_FS_READ))
+    if (!proc_check_perm(PERM_FS_READ))
         return (uint64_t)-1;
     return (uint64_t)vfs_read((int)fd, (void *)buf, (size_t)len);
 }
@@ -247,9 +247,9 @@ static uint64_t sys_open(uint64_t path, uint64_t flags, uint64_t mode)
 {
     (void)mode;
     uint32_t need = (flags & O_WRONLY || flags & O_RDWR)
-                        ? TLIB_PERM_FS_WRITE
-                        : TLIB_PERM_FS_READ;
-    if (!tlib_check_perm(need))
+                        ? PERM_FS_WRITE
+                        : PERM_FS_READ;
+    if (!proc_check_perm(need))
         return (uint64_t)-1;
     return (uint64_t)vfs_open((const char *)path, (uint32_t)flags);
 }
@@ -299,7 +299,7 @@ static uint64_t sys_port_find(uint64_t name_addr)
 static uint64_t sys_port_send(uint64_t idx, uint64_t code,
                               uint64_t data_addr, uint64_t length)
 {
-    if (!tlib_check_perm(TLIB_PERM_IPC_SEND))
+    if (!proc_check_perm(PERM_IPC_SEND))
         return (uint64_t)-1;
 
     extern port_t port_pool[];
@@ -315,7 +315,7 @@ static uint64_t sys_port_send(uint64_t idx, uint64_t code,
 
 static uint64_t sys_port_receive(uint64_t idx, uint64_t out_addr)
 {
-    if (!tlib_check_perm(TLIB_PERM_IPC_RECEIVE))
+    if (!proc_check_perm(PERM_IPC_RECEIVE))
         return (uint64_t)-1;
 
     extern port_t port_pool[];
@@ -363,7 +363,7 @@ static uint64_t sys_port_receive(uint64_t idx, uint64_t out_addr)
 
 static uint64_t sys_port_create(uint64_t name_addr)
 {
-    if (!tlib_check_perm(TLIB_PERM_IPC_RECEIVE))
+    if (!proc_check_perm(PERM_IPC_RECEIVE))
         return (uint64_t)-1;
 
     const char *name = (const char *)name_addr;
@@ -389,10 +389,10 @@ static long sys_fb_info(struct fb_info_user *out)
     if (!fb)
         return -1;
 
-    out->width  = fb->width;
+    out->width = fb->width;
     out->height = fb->height;
-    out->pitch  = fb->pitch;
-    out->bpp    = fb->bpp;
+    out->pitch = fb->pitch;
+    out->bpp = fb->bpp;
     return 0;
 }
 

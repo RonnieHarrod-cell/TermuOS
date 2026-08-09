@@ -12,7 +12,7 @@
 #include "../net/net.h"
 #include "../user/syscall.h"
 #include "../proc/process.h"
-#include "../tlib/tlib_bundle.h"
+#include "../proc/launch.h"
 #include "../ob/object.h"
 #include "../lib/printf.h"
 #include "../lib/string.h"
@@ -268,7 +268,7 @@ static void cmd_help(int argc, char **argv)
     (void)argv;
     kprintf("Commands: help clear echo uname uptime mem threads\n");
     kprintf("          ls cd pwd cat write touch mkdir rm reboot shutdown\n");
-    kprintf("          exec ps kill mkfs\n");
+    kprintf("          run ps kill mkfs\n");
     kprintf("          ifconfig ping arp smtp\n");
     kprintf("          obdir\n");
 }
@@ -721,13 +721,6 @@ static void cmd_mkfs(int argc, char **argv)
     kprintf("mkfs: done — disk mounted at /mnt\n");
 }
 
-static void cmd_exec(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    kprintf("exec: ELF loader not available in this build\n");
-}
-
 static void cmd_ps(int argc, char **argv)
 {
     (void)argc;
@@ -803,29 +796,12 @@ static void cmd_run(int argc, char **argv)
 {
     if (argc < 2)
     {
-        kprintf("run: usage: run <path/to/App.tapp>\n");
+        kprintf("run: usage: run <path/to/binary>\n");
         return;
     }
 
     static char path[VFS_PATH_MAX];
     resolve_path(argv[1], path, VFS_PATH_MAX);
-
-    int plen = sh_strlen(path);
-    int has_ext = (plen > 5 &&
-                   path[plen - 5] == '.' &&
-                   path[plen - 4] == 't' &&
-                   path[plen - 3] == 'a' &&
-                   path[plen - 2] == 'p' &&
-                   path[plen - 1] == 'p');
-    if (!has_ext && plen + 5 < VFS_PATH_MAX)
-    {
-        path[plen + 0] = '.';
-        path[plen + 1] = 't';
-        path[plen + 2] = 'a';
-        path[plen + 3] = 'p';
-        path[plen + 4] = 'p';
-        path[plen + 5] = '\0';
-    }
 
     // check exists
     uint32_t type;
@@ -834,21 +810,15 @@ static void cmd_run(int argc, char **argv)
         kprintf("run: %s: not found\n", path);
         return;
     }
-    if (type != VFS_DIR)
+    if (type != VFS_FILE)
     {
-        kprintf("run: %s: not a .tapp bundle (expected a directory)\n", path);
+        kprintf("run: %s: not a file\n", path);
         return;
     }
 
-    // load and launch
-    static tlib_app_t app;
-    if (tlib_bundle_load(path, &app) < 0)
-    {
-        kprintf("run: failed to load bundle %s\n", path);
-        return;
-    }
-    kprintf("run: launching %s v%s\n", app.manifest.name, app.manifest.version);
-    if (tlib_bundle_launch(&app) < 0)
+    // exec the ELF directly (full permissions - no manifest to read them from)
+    kprintf("run: launching %s\n", path);
+    if (exec_launch(path, 0xffffffff) < 0)
     {
         kprintf("run: launch failed\n");
     }
@@ -887,7 +857,6 @@ static const command_t commands[] = {
     {"pid", cmd_pid},
     {"sleep", cmd_sleep},
     {"yield", cmd_yield},
-    {"exec", cmd_exec},
     {"mkfs", cmd_mkfs},
     {"obdir", cmd_obdir},
     {"run", cmd_run},

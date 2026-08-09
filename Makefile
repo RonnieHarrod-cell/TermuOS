@@ -78,10 +78,9 @@ SRCS += kernel/io/ioman.c
 SRCS += kernel/drivers/storage/ata_ioman.c
 SRCS += kernel/drivers/input/keyboard_ioman.c
 SRCS += kernel/ipc/port.c
-SRCS += kernel/tlib/tlib_bundle.c
 SRCS += \
-       kernel/tlib/tlib_launch.c \
-       kernel/tlib/exec.c
+       kernel/proc/launch.c \
+       kernel/proc/exec.c
 
 SRCS += \
        kernel/drivers/video/fb.c \
@@ -158,7 +157,7 @@ iso: $(KERNEL)
 		-o termuos.iso
 
 run: iso disk.img tools/tfs_write
-#@./tools/tfs_write disk.img apps/FbTest /mnt/FbTest.tapp
+	@./tools/tfs_write disk.img hello /mnt/hello
 	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \
