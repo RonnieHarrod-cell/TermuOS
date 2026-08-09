@@ -162,7 +162,7 @@ run: iso disk.img tools/tfs_write
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \
 		-drive file=disk.img,format=raw,if=ide \
-		-serial stdio
+		-serial stdio -m 512
 
 disk.img: tools/mkfs_tfs
 	@./tools/mkfs_tfs disk.img 64
