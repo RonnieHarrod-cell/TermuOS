@@ -27,8 +27,11 @@ typedef struct thread
     struct process *owner;
 } thread_t;
 
+extern thread_t threads[MAX_THREADS];
+extern int current;
+
 void scheduler_init(void);
-thread_t *thread_create(const char *name, void(*entry)(void), process_t *owner);
+thread_t *thread_create(const char *name, void (*entry)(void), process_t *owner);
 void thread_exit(void);
 void thread_block(void);
 void thread_unblock(thread_t *t);
@@ -36,3 +39,4 @@ thread_t *thread_current(void);
 void scheduler_tick(registers_t *r);
 void scheduler_yield(void);
 void preempt_switch(uint64_t *old_rsp, uint64_t new_rsp, uint64_t new_cr3);
+void context_switch(uint64_t *old_rsp, uint64_t new_rsp);

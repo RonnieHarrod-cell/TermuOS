@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 thread_t threads[MAX_THREADS];
-static int current = 0;
+int current = 0;
 static int initialized = 0;
 
 extern void context_switch(uint64_t *old_rsp, uint64_t new_rsp);
@@ -142,16 +142,17 @@ static int next_thread(void)
         for (int i = 1; i < MAX_THREADS; i++)
         {
             int idx = (current + i) % MAX_THREADS;
+            if (idx == 0)
+                continue; /* skip idle */
 
-            if (threads[idx].state == THREAD_DEAD)
-                continue;
-            if (threads[idx].state == THREAD_BLOCKED)
+            if (threads[idx].state == THREAD_DEAD ||
+                threads[idx].state == THREAD_BLOCKED)
                 continue;
 
             if (pass == 0 && threads[idx].state == THREAD_READY)
                 return idx;
             if (pass == 1 && idx != current)
-                return idx; // stuck RUNNING, etc.
+                return idx;
         }
     }
     return -1;
@@ -169,10 +170,8 @@ void scheduler_yield(void)
 
     if (next < 0)
     {
-        kprintf("yield FAIL cur=%d\n", prev);
-        for (int i = 0; i < MAX_THREADS; i++)
-            kprintf("  t%d state=%d\n", i, (int)threads[i].state);
         __asm__ volatile("sti");
+        __asm__ volatile("hlt");
         return;
     }
 

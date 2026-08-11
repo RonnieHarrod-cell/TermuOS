@@ -221,6 +221,7 @@ static uint64_t sys_exit(uint64_t code)
 {
     thread_t *t = thread_current();
     process_t *proc = t ? t->owner : NULL;
+    int prev = t ? (int)t->id : current;
 
     kprintf("[kernel] process exited: %d\n", (int)code);
 
@@ -228,16 +229,50 @@ static uint64_t sys_exit(uint64_t code)
         proc_exit(proc, (int32_t)code);
 
     __asm__ volatile("cli");
+
+    for (int i = 1; i < MAX_THREADS; i++)
+    {
+        if (i != prev && threads[i].state == THREAD_RUNNING)
+            threads[i].state = THREAD_READY;
+    }
+
     if (t)
         t->state = THREAD_DEAD;
+
+    int next = -1;
+    for (int i = 1; i < MAX_THREADS; i++)
+    {
+        if (i == prev)
+            continue;
+        if (threads[i].state == THREAD_READY ||
+            threads[i].state == THREAD_RUNNING)
+        {
+            next = i;
+            break;
+        }
+    }
+
+    if (next < 0)
+    {
+        kprintf("sys_exit: no other threads\n");
+        __asm__ volatile("sti");
+        for (;;)
+            __asm__ volatile("hlt");
+    }
+
+    threads[next].state = THREAD_RUNNING;
+    current = next;
+
+    if (threads[prev].owner != threads[next].owner &&
+        threads[next].owner)
+        vmm_switch(threads[next].owner->pagemap);
+
     __asm__ volatile("sti");
 
-    scheduler_yield();
+    context_switch(&threads[prev].rsp, threads[next].rsp);
 
-    kprintf("sys_exit: yield returned (no runnable thread?)");
     for (;;)
         __asm__ volatile("hlt");
-
     return 0;
 }
 
@@ -476,17 +511,11 @@ static uint64_t sys_wait(uint64_t pid)
     for (;;)
     {
         process_t *p = proc_get((uint32_t)pid);
-        if (p)
-            kprintf("wait: pid %u state=%u\n", (unsigned)pid, (unsigned)p->state);
-
-        if (p->state == PROC_ZOMBIE)
-        {
-            int32_t code = p->exit_code;
-            return (uint64_t)(uint32_t)code;
-        }
-
         if (!p)
             return (uint64_t)-1;
+
+        if (p->state == PROC_ZOMBIE)
+            return (uint64_t)(uint32_t)p->exit_code;
 
         scheduler_yield();
     }

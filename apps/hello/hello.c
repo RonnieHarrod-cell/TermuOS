@@ -4,10 +4,6 @@
  * No libc, no dynamic linking — just raw Linux-ABI syscalls (which is what
  * TermuOS's syscall_dispatch implements), so it links as a plain static
  * ET_EXEC ELF64 binary that exec_load() can map directly.
- *
- * Build:
- *   gcc -static -nostdlib -no-pie -ffreestanding -fno-stack-protector \
- *       -fno-asynchronous-unwind-tables -O2 -o hello hello.c
  */
 
 static inline long syscall3(long n, long a1, long a2, long a3)
