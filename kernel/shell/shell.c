@@ -818,14 +818,20 @@ static void cmd_run(int argc, char **argv)
 
     // exec the ELF directly (full permissions - no manifest to read them from)
     kprintf("run: launching %s\n", path);
-
     int pid = exec_launch(path, 0xffffffff);
     if (pid < 0)
     {
         kprintf("run: launch failed\n");
         return;
     }
-    (void)pid;
+
+    for (;;)
+    {
+        process_t *p = proc_get((uint32_t)pid);
+        if (!p || p->state == PROC_ZOMBIE || p->state == PROC_DEAD)
+            break;
+        scheduler_yield();
+    }
 }
 
 // ─── Dispatch ─────────────────────────────────────────────────────────────────

@@ -134,14 +134,15 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
 
-    int pid = exec_launch("/mnt/bin/sh", 0xffffffff);
-    if (pid < 0)
-    {
-        kprintf("init: failed to launch /mnt/::/bin/sh\n");
-        kprintf("init: put sh on the disk.img as /bin/sh\n");
-    }
-
     // luna_run();
+
+    process_t *shell_proc = proc_create("shell");
+    if (!shell_proc)
+        shell_proc = proc_kernel();
+
+    thread_t *shell_thread = thread_create("shell", shell_thread_entry, shell_proc);
+    if (!shell_thread)
+        kprintf("kernel: failed to create shell thread\n");
 
     for (;;)
         __asm__ volatile("hlt");
