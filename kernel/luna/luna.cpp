@@ -9,6 +9,7 @@
 #include "desktop/desktop.hpp"
 #include "desktop/wm.hpp"
 #include "desktop/taskbar.hpp"
+#include "apps/app.hpp"
 
 extern "C"
 {
@@ -26,6 +27,7 @@ static int g_mx, g_my, g_omx, g_omy;
 static int g_cursor_saved;
 static uint32_t g_cursor_under[CURSOR_W * CURSOR_H];
 static bool g_running;
+static bool *g_running_ptr = nullptr;
 
 static void cursor_erase(Gfx &g)
 {
@@ -83,19 +85,9 @@ static void cursor_draw(Gfx &g)
             if (ch == ' ')
                 continue;
             g.put_pixel(g_mx + c, g_my + r,
-                        ch == 'X' ? 0xFFFFFFu : 0x000000u);
+                        ch == 'X' ? 0xFFFFFFFFu : 0x000000u);
         }
 }
-
-static void on_btn(void *user)
-{
-    (void)user;
-    kprintf("luna: button clicked\n");
-}
-
-static bool *g_running_ptr = nullptr;
-static Wm *g_wm = nullptr;
-static Window *g_about = nullptr;
 
 static void action_exit(void *user)
 {
@@ -115,8 +107,8 @@ extern "C" void luna_run(void)
     g_mx = gfx.width() / 2;
     g_my = gfx.height() / 2;
     g_running = true;
+    g_running_ptr = &g_running;
 
-    /* —— desktop shell —— */
     Desktop desk;
     desk.x = 0;
     desk.y = 0;
@@ -125,6 +117,7 @@ extern "C" void luna_run(void)
 
     Wm wm;
     desk.wm = &wm;
+    g_luna_wm = &wm;
 
     Taskbar bar;
     bar.wm = &wm;
@@ -135,44 +128,10 @@ extern "C" void luna_run(void)
     menu.visible = false;
     menu.open = false;
     menu.parent = nullptr;
+
+    luna_apps_register_menu(menu);
     menu.add_item("Exit Luna", action_exit, nullptr);
-
     bar.menu = &menu;
-
-    /* —— demo window + widgets —— */
-    Window win;
-    win.x = 120;
-    win.y = 80;
-    win.w = 420;
-    win.h = 300;
-    win.title = "Demo - Luna";
-    win.visible = true;
-
-    Label lab;
-    lab.x = Window::kBorder + 8;
-    lab.y = Window::kBorder + Window::kTitleH + 8;
-    lab.w = 300;
-    lab.h = 20;
-    lab.text = "Luna desktop";
-    win.add(&lab);
-
-    Button btn;
-    btn.x = Window::kBorder + 8;
-    btn.y = Window::kBorder + Window::kTitleH + 40;
-    btn.w = 120;
-    btn.h = 28;
-    btn.text = "Click me";
-    btn.on_click = on_btn;
-    win.add(&btn);
-
-    TextField field;
-    field.x = Window::kBorder + 8;
-    field.y = Window::kBorder + Window::kTitleH + 80;
-    field.w = 280;
-    field.h = 28;
-    win.add(&field);
-
-    wm.add(&win);
 
     auto composite = [&]()
     {
@@ -189,6 +148,7 @@ extern "C" void luna_run(void)
     kprintf("luna: desktop running — Esc to quit\n");
 
     uint8_t prev_buttons = 0;
+    Window *drag_win = nullptr;
 
     while (g_running)
     {
@@ -220,15 +180,23 @@ extern "C" void luna_run(void)
                 ev.type = EventType::MouseMove;
             }
 
-            /* ---- hit test (one path only) ---- */
-            if (menu.open && menu.visible && menu.contains_screen(ev.x, ev.y))
+            if (drag_win && (st.buttons & 1) &&
+                (ev.type == EventType::MouseMove || ev.type == EventType::MouseUp))
+            {
+                drag_win->on_event(ev);
+                full = true;
+                if (ev.type == EventType::MouseUp)
+                    drag_win = nullptr;
+            }
+            else if (menu.open && menu.visible &&
+                     menu.contains_screen(ev.x, ev.y))
             {
                 menu.on_event(ev);
                 full = true;
             }
             else if (bar.contains_screen(ev.x, ev.y))
             {
-                bar.on_event(ev); /* Start click → menu.toggle(height) */
+                bar.on_event(ev);
                 full = true;
             }
             else if (Window *hit = wm.hit(ev.x, ev.y))
@@ -236,8 +204,13 @@ extern "C" void luna_run(void)
                 if (menu.open)
                     menu.close_menu();
                 if (ev.type == EventType::MouseDown)
+                {
                     wm.raise(hit);
+                    drag_win = hit;
+                }
                 hit->on_event(ev);
+                if (ev.type == EventType::MouseUp)
+                    drag_win = nullptr;
             }
             else
             {
@@ -245,15 +218,28 @@ extern "C" void luna_run(void)
                     menu.close_menu();
                 desk.on_event(ev);
                 if (ev.type == EventType::MouseDown)
+                {
+                    drag_win = nullptr;
+                    full = true;
+                }
+            }
+
+            if (desk.dirty || bar.dirty || menu.dirty)
+                full = true;
+
+            for (int i = 0; i < wm.count; i++)
+            {
+                if (wm.stack[i] && wm.stack[i]->dirty)
                     full = true;
             }
 
-            if (win.dirty || desk.dirty || bar.dirty || menu.dirty)
-                full = true;
-
             if (full)
             {
-                win.dirty = desk.dirty = bar.dirty = menu.dirty = false;
+                desk.dirty = bar.dirty = menu.dirty = false;
+                for (int i = 0; i < wm.count; i++)
+                    if (wm.stack[i])
+                        wm.stack[i]->dirty = false;
+
                 g_mx = st.x;
                 g_my = st.y;
                 composite();
@@ -297,6 +283,9 @@ extern "C" void luna_run(void)
             }
         }
     }
+
+    g_luna_wm = nullptr;
+    g_running_ptr = nullptr;
 
     terminal_set_offset(0, 0);
     terminal_set_size((uint64_t)gfx.width(), (uint64_t)gfx.height());
