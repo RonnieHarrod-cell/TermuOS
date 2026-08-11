@@ -130,7 +130,7 @@ extern "C" void luna_run(void)
     menu.parent = nullptr;
 
     luna_apps_register_menu(menu);
-    menu.add_item("Exit Luna", action_exit, nullptr);
+    menu.add_item("Exit Luna", "System", action_exit, nullptr);
     bar.menu = &menu;
 
     auto composite = [&]()

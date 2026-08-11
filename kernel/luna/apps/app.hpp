@@ -4,6 +4,7 @@ struct LunaApp
 {
     const char *id;
     const char *name;
+    const char *category;
     void (*open)(void *user);
     void *user;
 };

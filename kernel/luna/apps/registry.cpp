@@ -3,7 +3,7 @@
 
 Wm *g_luna_wm = nullptr;
 
-static void about_trampoline(void *user)
+static void trampoline(void *user)
 {
     auto *app = (LunaApp *)user;
     if (app && app->open)
@@ -14,11 +14,12 @@ static void about_trampoline(void *user)
 void app_about_open(void *user);
 
 static LunaApp g_apps[] = {
-    {"about", "About Luna", app_about_open, nullptr},
+    {"about", "About Luna", "Apps", app_about_open, nullptr},
 };
 
 void luna_apps_register_menu(StartMenu &menu)
 {
     for (unsigned i = 0; i < sizeof(g_apps) / sizeof(g_apps[0]); i++)
-        menu.add_item(g_apps[i].name, about_trampoline, &g_apps[i]);
+        menu.add_item(g_apps[i].name, g_apps[i].category,
+                      trampoline, &g_apps[i]);
 }
