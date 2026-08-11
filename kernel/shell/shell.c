@@ -818,11 +818,14 @@ static void cmd_run(int argc, char **argv)
 
     // exec the ELF directly (full permissions - no manifest to read them from)
     kprintf("run: launching %s\n", path);
-    if (exec_launch(path, 0xffffffff) < 0)
+
+    int pid = exec_launch(path, 0xffffffff);
+    if (pid < 0)
     {
         kprintf("run: launch failed\n");
+        return;
     }
-    // returns immediatly; new thread is scheduled independently
+    (void)pid;
 }
 
 // ─── Dispatch ─────────────────────────────────────────────────────────────────

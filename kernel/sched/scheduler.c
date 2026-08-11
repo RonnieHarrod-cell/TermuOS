@@ -137,16 +137,23 @@ thread_t *thread_current(void) { return &threads[current]; }
 
 static int next_thread(void)
 {
-    for (int i = 1; i < MAX_THREADS; i++)
+    for (int pass = 0; pass < 2; pass++)
     {
-        int idx = (current + i) % MAX_THREADS;
-        if (idx == 0)
-            continue;
-        if (threads[idx].state == THREAD_READY)
-            return idx;
+        for (int i = 1; i < MAX_THREADS; i++)
+        {
+            int idx = (current + i) % MAX_THREADS;
+
+            if (threads[idx].state == THREAD_DEAD)
+                continue;
+            if (threads[idx].state == THREAD_BLOCKED)
+                continue;
+
+            if (pass == 0 && threads[idx].state == THREAD_READY)
+                return idx;
+            if (pass == 1 && idx != current)
+                return idx; // stuck RUNNING, etc.
+        }
     }
-    if (threads[0].state == THREAD_READY)
-        return 0;
     return -1;
 }
 
@@ -154,21 +161,27 @@ void scheduler_yield(void)
 {
     if (!initialized)
         return;
+
     __asm__ volatile("cli");
 
+    int prev = current;
     int next = next_thread();
+
     if (next < 0)
     {
+        kprintf("yield FAIL cur=%d\n", prev);
+        for (int i = 0; i < MAX_THREADS; i++)
+            kprintf("  t%d state=%d\n", i, (int)threads[i].state);
         __asm__ volatile("sti");
         return;
     }
 
-    int prev = current;
     if (threads[prev].state == THREAD_RUNNING)
         threads[prev].state = THREAD_READY;
+
     threads[next].state = THREAD_RUNNING;
     current = next;
-    // switch address space if process changed
+
     if (threads[prev].owner != threads[next].owner)
         vmm_switch(threads[next].owner->pagemap);
 

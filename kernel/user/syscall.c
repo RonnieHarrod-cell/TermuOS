@@ -3,12 +3,14 @@
 #include "../drivers/video/terminal.h"
 #include "../drivers/serial/serial.h"
 #include "../drivers/video/fb.h"
+#include "../drivers/input/keyboard.h"
 #include "../sched/scheduler.h"
 #include "../fs/vfs.h"
 #include "../mm/pmm.h"
 #include "../mm/vmm.h"
 #include "../ipc/port.h"
 #include "../proc/launch.h"
+#include "../proc/process.h"
 #include "../lib/printf.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -232,6 +234,7 @@ static uint64_t sys_exit(uint64_t code)
 
     scheduler_yield();
 
+    kprintf("sys_exit: yield returned (no runnable thread?)");
     for (;;)
         __asm__ volatile("hlt");
 
@@ -242,6 +245,8 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 {
     if (fd == 1 || fd == 2) // stdout/stderr always allowed
     {
+        if (buf_addr == 0)
+            return (uint64_t)-1;
         const char *buf = (const char *)buf_addr;
         for (uint64_t i = 0; i < len; i++)
         {
@@ -257,9 +262,15 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 
 static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 {
-    if (!proc_check_perm(PERM_FS_READ))
+    if (fd != 0 || !buf || !len)
         return (uint64_t)-1;
-    return (uint64_t)vfs_read((int)fd, (void *)buf, (size_t)len);
+
+    while (!keyboard_haschar())
+        scheduler_yield();
+
+    char c = keyboard_getchar();
+    *(volatile char *)buf = c;
+    return 1;
 }
 
 static uint64_t sys_open(uint64_t path, uint64_t flags, uint64_t mode)
@@ -434,6 +445,53 @@ static long sys_fb_putpixel(uint64_t x, uint64_t y, uint32_t colour)
     return 0;
 }
 
+static uint64_t sys_spawn(uint64_t path_addr)
+{
+    if (!path_addr)
+        return (uint64_t)-1;
+
+    char path[VFS_PATH_MAX];
+    int i;
+    const char *upath = (const char *)path_addr;
+    for (i = 0; i < VFS_PATH_MAX - 1; i++)
+    {
+        char c = upath[i];
+        path[i] = c;
+        if (c == '\0')
+            break;
+    }
+    path[i] = '\0';
+    if (i == 0)
+        return (uint64_t)-1;
+
+    int pid = exec_launch(path, 0xffffffff);
+    return (pid < 0) ? (uint64_t)-1 : (uint64_t)pid;
+}
+
+static uint64_t sys_wait(uint64_t pid)
+{
+    if (pid == 0)
+        return (uint64_t)-1;
+
+    for (;;)
+    {
+        process_t *p = proc_get((uint32_t)pid);
+        if (p)
+            kprintf("wait: pid %u state=%u\n", (unsigned)pid, (unsigned)p->state);
+
+        if (p->state == PROC_ZOMBIE)
+        {
+            int32_t code = p->exit_code;
+            return (uint64_t)(uint32_t)code;
+        }
+
+        if (!p)
+            return (uint64_t)-1;
+
+        scheduler_yield();
+    }
+}
+
 /* ── dispatch ────────────────────────────────────────────────────────────── */
 
 uint64_t syscall_dispatch(uint64_t num, uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f)
@@ -482,6 +540,10 @@ uint64_t syscall_dispatch(uint64_t num, uint64_t a, uint64_t b, uint64_t c, uint
         return sys_fb_fill_rect(a, b, c, d, (uint32_t)e);
     case SYS_FB_PUTPIXEL:
         return sys_fb_putpixel(a, b, (uint32_t)c);
+    case SYS_SPAWN:
+        return sys_spawn(a);
+    case SYS_WAIT:
+        return sys_wait(a);
     default:
         kprintf("[kernel] unknown syscall %llu\n", num);
         return (uint64_t)-1;

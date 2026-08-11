@@ -168,8 +168,11 @@ void proc_list(void)
 process_t *proc_get(uint32_t pid)
 {
   for (int i = 0; i < MAX_PROCESSES; i++)
-    if (proc_table[i].state != PROC_DEAD && proc_table[i].pid == pid)
+  {
+    if (proc_table[i].pid == pid &&
+        proc_table[i].state != PROC_DEAD)
       return &proc_table[i];
+  }
   return NULL;
 }
 

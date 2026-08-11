@@ -5,3 +5,5 @@ termuos.iso
 disk.img
 tools/mkfs_tfs
 tools/tfs_write
+apps/hello/hello
+apps/sh/sh

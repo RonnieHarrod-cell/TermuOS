@@ -159,7 +159,8 @@ iso: $(KERNEL)
 		-o termuos.iso
 
 run: iso disk.img tools/tfs_write
-	@./tools/tfs_write disk.img hello /mnt/hello
+	@./tools/tfs_write disk.img apps/hello/hello /bin/hello
+	@./tools/tfs_write disk.img apps/sh/sh /bin/sh
 	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \

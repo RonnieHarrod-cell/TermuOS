@@ -78,7 +78,7 @@ int exec_launch(const char *vfs_path, uint32_t perm_mask)
   }
 
   kprintf("exec: scheduled '%s' (pid %u, tid %u)\n", name, proc->pid, (uint32_t)t->id);
-  return 0;
+  return (int)proc->pid;
 }
 
 static uint32_t current_perm_mask = 0xffffffff; // kernel: all perms
