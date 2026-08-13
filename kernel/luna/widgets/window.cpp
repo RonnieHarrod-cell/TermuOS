@@ -1,19 +1,35 @@
 #include "window.hpp"
 #include "../focus.hpp"
+#include "../theme.hpp"
 
 void Window::paint(Gfx &g)
 {
     int sx, sy;
     screen_pos(sx, sy);
 
-    g.fill_rect(sx, sy, w, h, 0xFF3A3A4Au);
-    g.fill_rect(sx + kBorder, sy + kBorder, w - kBorder * 2, kTitleH, 0xFF2D5B8Au);
-    g.fill_rect(sx + w - kBorder - 16, sy + kBorder + 4, 12, 12, 0xFFCC3333u);
-    g.fill_rect(sx + kBorder, sy + kBorder + kTitleH,
-                w - kBorder * 2, h - kTitleH - kBorder * 2, 0xFFE8E8EEu);
+    g.draw_raised(sx, sy, w, h);
 
-    if (title)
-        g.draw_text(sx + kBorder + 6, sy + kBorder + 6, title, 0xFFFFFFFFu, 0xFF2D5B8Au);
+    /* title bar */
+    int tx = sx + 3, ty = sy + 3, tw = w - 6, th = kTitleH;
+
+    for (int i = 0; i < tw; i++)
+    {
+        int t = (tw > 1) ? i : 0;
+        int r = 0 + (0x10 * t) / (tw > 1 ? tw - 1 : 1);
+        int gr = 0 + (0x84 * t) / (tw > 1 ? tw - 1 : 1);
+        int b = 0x80 + ((0xD0 - 0x80) * t) / (tw > 1 ? tw - 1 : 1);
+        uint32_t col = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)gr << 8) | (uint32_t)b;
+        g.fill_rect(tx + i, ty, 1, th - 1, col);
+    }
+
+    g.draw_text(tx + 4, ty + 2, title ? title : "", Theme::title_text, Theme::title_left);
+
+    /* close button */
+    g.draw_raised(sx + w - 20, sy + 5, 16, 14);
+    g.draw_text(sx + w - 16, sy + 4, "x", Theme::text, Theme::face);
+
+    /* client area */
+    g.fill_rect(sx + 3, sy + 3 + kTitleH, w - 6, h - 6 - kTitleH, Theme::client);
 }
 
 bool Window::on_event(const Event &e)

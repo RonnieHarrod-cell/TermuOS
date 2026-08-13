@@ -1,6 +1,7 @@
 #include "../widgets/widget.hpp"
 #include "startmenu/startmenu.hpp"
 #include "wm.hpp"
+#include "../theme.hpp"
 
 class Taskbar : public Widget
 {
@@ -26,19 +27,17 @@ public:
         if (parent)
             screen_pos(sx, sy);
 
-        g.fill_rect(sx, sy, w, h, 0xFF121826u);
-        g.fill_rect(sx, sy, w, 1, 0xFF3A455Fu);
-        g.fill_rect(sx, sy + h - 1, w, 1, 0xFF0A0E18u);
+        g.draw_raised(sx, sy, w, h);
+        /* top highlight already in raised; optional extra line */
+        g.fill_rect(sx, sy, w, 1, Theme::highlight);
 
-        // start button
-        int bx = sx + 6, by = sy + 4, bw = 72, bh = h - 8;
-        g.fill_rect(bx, by, bw, bh, 0xFF5B8CFFu);
-        g.fill_rect(bx, by, bw, 1, 0xFF8BB0FFu);
-        g.draw_text(bx + 14, by + (bh - 16) / 2, "Start", 0xFFFFFFFFu, 0xFF5B8CFFu);
-
-        g.draw_text(sx + 90, sy + 10, "Luna", 0xFF8B93A7u, 0xFF121826u);
-
-        g.draw_text(sx + w - 60, sy + 10, "12:00", 0xFFC5CAD6u, 0xFF121826u);
+        /* Start button — raised, pressed = sunken when menu open */
+        int bx = sx + 2, by = sy + 3, bw = 54, bh = h - 6;
+        if (menu && menu->open)
+            g.draw_sunken(bx, by, bw, bh);
+        else
+            g.draw_raised(bx, by, bw, bh);
+        g.draw_text(bx + 8, by + 4, "Start", Theme::text, Theme::face);
     }
 
     bool on_event(const Event &e) override

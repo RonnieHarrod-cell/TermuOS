@@ -1,8 +1,6 @@
 #pragma once
 #include "../../widgets/widget.hpp"
 
-class Wm;
-
 struct StartItem
 {
     const char *label;
@@ -15,13 +13,17 @@ class StartMenu : public Widget
 {
 public:
     static constexpr int kMaxItems = 16;
+    static constexpr int kMaxCats = 8;
     static constexpr int kItemH = 28;
-    static constexpr int kSepH = 8;
     static constexpr int kPad = 4;
+    static constexpr int kPanelW = 140;
 
     StartItem items[kMaxItems]{};
     int item_count = 0;
     bool open = false;
+
+    /* -1 = only root categories; >=0 = that category index is expanded */
+    int open_cat = -1;
 
     void add_item(const char *label, const char *category,
                   void (*action)(void *), void *user = nullptr);
@@ -32,7 +34,16 @@ public:
     bool on_event(const Event &e) override;
 
 private:
-    int item_y(int index) const;
-    int content_height() const;
-    static bool same_category(const char *a, const char *b);
+    struct Cat
+    {
+        const char *name;
+        int first_item; /* index into items[] */
+        int count;
+    };
+    Cat cats[kMaxCats]{};
+    int cat_count = 0;
+
+    void rebuild_categories();
+    int root_height() const;
+    int sub_height(int cat) const;
 };

@@ -1,21 +1,22 @@
 #include "startmenu.hpp"
+#include "../../theme.hpp"
 #include "../../focus.hpp"
 
-static const char *cat_or_default(const char *c)
+static const char *cat_name(const char *c)
 {
     return (c && c[0]) ? c : "General";
 }
 
-bool StartMenu::same_category(const char *a, const char *b)
+static bool str_eq(const char *a, const char *b)
 {
-    const char *ca = cat_or_default(a);
-    const char *cb = cat_or_default(b);
-    while (*ca && *ca == *cb)
+    if (!a || !b)
+        return a == b;
+    while (*a && *a == *b)
     {
-        ca++;
-        cb++;
+        a++;
+        b++;
     }
-    return *ca == *cb;
+    return *a == *b;
 }
 
 void StartMenu::add_item(const char *label, const char *category,
@@ -30,30 +31,54 @@ void StartMenu::add_item(const char *label, const char *category,
     item_count++;
 }
 
-int StartMenu::item_y(int index) const
+void StartMenu::rebuild_categories()
 {
-    int y = 0;
-    for (int i = 0; i < index; i++)
+    cat_count = 0;
+    for (int i = 0; i < item_count; i++)
     {
-        y += kItemH;
-        if (i + 1 < item_count &&
-            !same_category(items[i].category, items[i + 1].category))
-            y += kSepH;
+        const char *c = cat_name(items[i].category);
+        int found = -1;
+        for (int j = 0; j < cat_count; j++)
+        {
+            if (str_eq(cats[j].name, c))
+            {
+                found = j;
+                break;
+            }
+        }
+        if (found < 0)
+        {
+            if (cat_count >= kMaxCats)
+                continue;
+            cats[cat_count].name = c;
+            cats[cat_count].count = 1;
+            cat_count++;
+        }
+        else
+        {
+            cats[found].count++;
+        }
     }
-    return y;
 }
 
-int StartMenu::content_height() const
+int StartMenu::root_height() const
 {
-    if (item_count == 0)
+    return kPad * 2 + cat_count * kItemH;
+}
+
+int StartMenu::sub_height(int cat) const
+{
+    if (cat < 0 || cat >= cat_count)
         return 0;
-    return item_y(item_count - 1) + kItemH;
+    return kPad * 2 + cats[cat].count * kItemH;
 }
 
 void StartMenu::close_menu()
 {
     open = false;
     visible = false;
+    open_cat = -1;
+    w = kPanelW;
     mark_dirty();
 }
 
@@ -61,14 +86,20 @@ void StartMenu::toggle(int screen_h)
 {
     open = !open;
     visible = open;
+    open_cat = -1;
     if (open)
     {
-        w = 180;
-        h = kPad * 2 + content_height();
-        x = 4;
-        y = screen_h - 36 - h - 4;
-        if (y < 4)
-            y = 4;
+        rebuild_categories();
+        w = kPanelW;
+        h = root_height();
+        x = 2;
+        y = screen_h - 36 - h - 2;
+        if (y < 2)
+            y = 2;
+    }
+    else
+    {
+        w = kPanelW;
     }
     mark_dirty();
 }
@@ -81,23 +112,41 @@ void StartMenu::paint(Gfx &g)
     int sx, sy;
     screen_pos(sx, sy);
 
-    g.fill_rect(sx, sy, w, h, 0xFF161C2Au);
-    g.draw_rect(sx, sy, w, h, 0xFF5B8CFFu);
+    int rh = root_height();
+    g.draw_raised(sx, sy, kPanelW, rh);
 
+    for (int i = 0; i < cat_count; i++)
+    {
+        int iy = sy + kPad + i * kItemH;
+        bool sel = (i == open_cat);
+        uint32_t bg = sel ? Theme::select : Theme::face;
+        uint32_t fg = sel ? Theme::select_text : Theme::text;
+        if (sel)
+            g.fill_rect(sx + 2, iy, kPanelW - 4, kItemH, bg);
+        g.draw_text(sx + 10, iy + 6, cats[i].name ? cats[i].name : "", fg, bg);
+        g.draw_text(sx + kPanelW - 16, iy + 6, ">", fg, bg);
+    }
+
+    if (open_cat < 0 || open_cat >= cat_count)
+        return;
+
+    int sub_h = sub_height(open_cat);
+    int sub_x = sx + kPanelW - 2;
+    int sub_y = sy + kPad + open_cat * kItemH;
+
+    g.draw_raised(sub_x, sub_y, kPanelW, sub_h);
+
+    int row = 0;
+    const char *want = cats[open_cat].name;
     for (int i = 0; i < item_count; i++)
     {
-        int iy = sy + kPad + item_y(i);
-
-        if (i > 0 &&
-            !same_category(items[i - 1].category, items[i].category))
-        {
-            int sep_y = iy - kSepH / 2;
-            g.fill_rect(sx + 10, sep_y, w - 20, 1, 0xFF3A455Fu);
-        }
-
-        g.draw_text(sx + 12, iy + 6,
+        if (!str_eq(cat_name(items[i].category), want))
+            continue;
+        int iy = sub_y + kPad + row * kItemH;
+        g.draw_text(sub_x + 10, iy + 6,
                     items[i].label ? items[i].label : "",
-                    0xFFE8ECF4u, 0xFF161C2Au);
+                    Theme::text, Theme::face);
+        row++;
     }
 }
 
@@ -106,24 +155,86 @@ bool StartMenu::on_event(const Event &e)
     if (!open || !visible)
         return false;
 
-    if (e.type == EventType::MouseDown && contains_screen(e.x, e.y))
-    {
-        int sx, sy;
-        screen_pos(sx, sy);
-        int rel = e.y - sy - kPad;
+    int sx, sy;
+    screen_pos(sx, sy);
 
-        for (int i = 0; i < item_count; i++)
+    int rh = root_height();
+    int sub_h = (open_cat >= 0) ? sub_height(open_cat) : 0;
+    int sub_x = sx + kPanelW - 2;
+    int sub_y = sy + kPad + (open_cat >= 0 ? open_cat * kItemH : 0);
+
+    auto in_root = [&](int px, int py)
+    {
+        return px >= sx && px < sx + kPanelW && py >= sy && py < sy + rh;
+    };
+    auto in_sub = [&](int px, int py)
+    {
+        if (open_cat < 0)
+            return false;
+        return px >= sub_x && px < sub_x + kPanelW &&
+               py >= sub_y && py < sub_y + sub_h;
+    };
+
+    if (e.type == EventType::MouseMove)
+    {
+        if (in_root(e.x, e.y) || in_sub(e.x, e.y))
+            return true;
+        return false;
+    }
+
+    if (e.type != EventType::MouseDown)
+        return false;
+
+    /* submenu app click */
+    if (in_sub(e.x, e.y))
+    {
+        int rel = e.y - sub_y - kPad;
+        if (rel >= 0)
         {
-            int iy = item_y(i);
-            if (rel >= iy && rel < iy + kItemH)
+            int row = rel / kItemH;
+            int row_i = 0;
+            const char *want = cats[open_cat].name;
+            for (int i = 0; i < item_count; i++)
             {
-                if (items[i].action)
-                    items[i].action(items[i].user);
-                break;
+                if (!str_eq(cat_name(items[i].category), want))
+                    continue;
+                if (row_i == row)
+                {
+                    if (items[i].action)
+                        items[i].action(items[i].user);
+                    close_menu();
+                    return true;
+                }
+                row_i++;
             }
         }
-        close_menu();
         return true;
     }
+
+    /* root category click */
+    if (in_root(e.x, e.y))
+    {
+        int rel = e.y - sy - kPad;
+        if (rel >= 0)
+        {
+            int idx = rel / kItemH;
+            if (idx >= 0 && idx < cat_count)
+            {
+                if (open_cat == idx)
+                {
+                    open_cat = -1;
+                    w = kPanelW;
+                }
+                else
+                {
+                    open_cat = idx;
+                    w = kPanelW * 2; /* include flyout for contains_screen */
+                }
+                mark_dirty();
+            }
+        }
+        return true;
+    }
+
     return false;
 }

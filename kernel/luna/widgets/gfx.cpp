@@ -1,6 +1,7 @@
 #include "gfx.hpp"
 #include "../../drivers/video/fb.h"
 #include "../../lib/font.h"
+#include "../theme.hpp"
 
 void Gfx::init_from_fb()
 {
@@ -99,4 +100,26 @@ void Gfx::blit_rgba(int x, int y, int w, int h, const uint8_t *rgba)
             put_pixel(x + col, y + row, 0xFF000000u | (r << 16) | (g << 8) | b);
         }
     }
+}
+
+void Gfx::draw_raised(int x, int y, int w, int h)
+{
+    fill_rect(x, y, w, h, Theme::face);
+    // highlight top/left
+    fill_rect(x, y, w, 1, Theme::highlight);
+    fill_rect(x, y, 1, h, Theme::highlight);
+    // shadow bottom/right
+    fill_rect(x, y + h - 1, w, 1, Theme::dkshadow);
+    fill_rect(x + w - 1, y, 1, h, Theme::dkshadow);
+    fill_rect(x + 1, y + h - 2, w - 2, 1, Theme::shadow);
+    fill_rect(x + w - 2, y + 1, 1, h - 2, Theme::shadow);
+}
+
+void Gfx::draw_sunken(int x, int y, int w, int h)
+{
+    fill_rect(x, y, w, h, Theme::client);
+    fill_rect(x, y, w, 1, Theme::shadow);
+    fill_rect(x, y, 1, h, Theme::shadow);
+    fill_rect(x, y + h - 1, w, 1, Theme::highlight);
+    fill_rect(x + w - 1, y, 1, h, Theme::highlight);
 }

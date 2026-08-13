@@ -16,6 +16,9 @@ public:
 
     void blit_rgba(int x, int y, int w, int h, const uint8_t *rgba);
 
+    void draw_raised(int x, int y, int w, int h);
+    void draw_sunken(int x, int y, int w, int h);
+
 private:
     int w_ = 0, h_ = 0;
     void draw_char(int x, int y, char c, uint32_t fg, uint32_t bg);
