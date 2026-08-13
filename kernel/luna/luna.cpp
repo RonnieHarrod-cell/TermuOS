@@ -296,10 +296,7 @@ extern "C" void luna_run(void)
 
             if (app_terminal_is_open())
             {
-                if (c == '\r')
-                    c = '\n';
-                terminal_putchar(c);
-                app_terminal_paint();
+                app_terminal_handle_key(c);
                 continue;
             }
 

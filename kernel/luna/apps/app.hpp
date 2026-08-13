@@ -20,3 +20,4 @@ bool app_terminal_is_open(void);
 void app_terminal_paint(void);
 class Window;
 Window *app_terminal_window(void);
+void app_terminal_handle_key(char c);

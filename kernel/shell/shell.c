@@ -891,7 +891,7 @@ static void dispatch(char *line)
     kprintf("tsh: command not found: %s\n", argv[0]);
 }
 
-static void print_prompt(void)
+void print_prompt(void)
 {
     kprintf(USERNAME "@");
     kprintf(HOSTNAME);

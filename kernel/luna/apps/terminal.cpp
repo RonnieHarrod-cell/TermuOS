@@ -8,10 +8,21 @@ extern "C"
 {
 #include "../../drivers/video/terminal.h"
 #include "../../lib/printf.h"
+#include "../../shell/shell.h"
 }
 
 static Window term_win;
 static bool term_ready;
+
+static char line_buf[256];
+static int line_len;
+
+static int last_cx = -1, last_cy = -1, last_cw = -1, last_ch = -1;
+
+static void term_prompt(void)
+{
+    print_prompt();
+}
 
 static void term_layout_client()
 {
@@ -21,7 +32,15 @@ static void term_layout_client()
     int ch = term_win.h - Window::kBorder * 2 - Window::kTitleH;
 
     terminal_set_offset((uint64_t)cx, (uint64_t)cy);
-    terminal_set_size((uint64_t)cw, (uint64_t)ch);
+
+    if (cx != last_cx || cy != last_cy || cw != last_cw || ch != last_ch)
+    {
+        terminal_set_size((uint64_t)cw, (uint64_t)ch);
+        last_cx = cx;
+        last_cy = cy;
+        last_cw = cw;
+        last_ch = ch;
+    }
 }
 
 void app_terminal_open(void *user)
@@ -47,7 +66,9 @@ void app_terminal_open(void *user)
 
     term_layout_client();
     terminal_putchar('\f');
+    line_len = 0;
     kprintf("TermuOS Luna Terminal\n");
+    term_prompt();
 
     term_win.mark_dirty();
 }
@@ -68,4 +89,43 @@ void app_terminal_paint(void)
 Window *app_terminal_window(void)
 {
     return term_ready ? &term_win : nullptr;
+}
+
+void app_terminal_handle_key(char c)
+{
+    if (!app_terminal_is_open())
+        return;
+
+    if (c == '\r')
+        c = '\n';
+
+    if (c == '\n')
+    {
+        terminal_putchar('\n');
+        line_buf[line_len] = '\0';
+        if (line_len > 0)
+            shell_run_command(line_buf);
+        line_len = 0;
+        term_prompt();
+        app_terminal_paint();
+        return;
+    }
+
+    if (c == '\b' || c == 127)
+    {
+        if (line_len > 0)
+        {
+            line_len--;
+            terminal_putchar('\b');
+        }
+        app_terminal_paint();
+        return;
+    }
+
+    if (c >= 32 && c < 127 && line_len < (int)sizeof(line_buf) - 1)
+    {
+        line_buf[line_len++] = c;
+        terminal_putchar(c);
+        app_terminal_paint();
+    }
 }
