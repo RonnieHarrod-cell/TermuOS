@@ -75,6 +75,8 @@ SRCS += \
 
 SRCS += kernel/proc/process.c
 
+SRCS += kernel/luna/icon.c
+
 SRCS += kernel/ob/object.c
 
 SRCS += kernel/io/ioman.c
@@ -149,6 +151,8 @@ iso: $(KERNEL)
 	@cp limine/limine-uefi-cd.bin iso/boot/
 	@cp limine/BOOTX64.EFI iso/boot/
 	@cp limine.conf iso/limine.conf
+	@mkdir -p iso/boot/icons
+	@cp assets/icons/*.rgba iso/boot/icons/ 2>/dev/null || true
 	@cp assets/logo.png iso/boot/
 	@xorriso -as mkisofs \
 		-b boot/limine-bios-cd.bin \

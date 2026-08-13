@@ -83,3 +83,20 @@ void Gfx::draw_text(int x, int y, const char *s, uint32_t fg, uint32_t bg)
         cx += FONT_W;
     }
 }
+
+void Gfx::blit_rgba(int x, int y, int w, int h, const uint8_t *rgba)
+{
+    if (!rgba)
+        return;
+    for (int row = 0; row < h; row++)
+    {
+        for (int col = 0; col < w; col++)
+        {
+            const uint8_t *p = rgba + (row * w + col) * 4;
+            uint8_t r = p[0], g = p[1], b = p[2], a = p[3];
+            if (a < 16)
+                continue;
+            put_pixel(x + col, y + row, 0xFF000000u | (r << 16) | (g << 8) | b);
+        }
+    }
+}

@@ -50,6 +50,11 @@ __attribute__((used, section(".limine_requests"))) static volatile struct limine
 __attribute__((used, section(".limine_requests"))) static volatile struct limine_kernel_address_request kaddr_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST, .revision = 0};
 
+__attribute__((used, section(".limine_requests"))) volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0,
+};
+
 __attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER
 
     static uint64_t

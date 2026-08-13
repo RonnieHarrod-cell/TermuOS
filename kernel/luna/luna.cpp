@@ -18,7 +18,11 @@ extern "C"
 #include "../drivers/video/fb.h"
 #include "../drivers/video/terminal.h"
 #include "../lib/printf.h"
+
+#include "icon.h"
 }
+
+static luna_icon_t g_icon_about;
 
 static constexpr int CURSOR_W = 12;
 static constexpr int CURSOR_H = 18;
@@ -103,6 +107,11 @@ extern "C" void luna_run(void)
     if (gfx.width() <= 0)
         return;
 
+    if (luna_icon_load("about.rgba", 32, 32, &g_icon_about) == 0)
+        kprintf("luna: about icon ok\n");
+    else
+        kprintf("luna: about icon missing\n");
+
     mouse_set_bounds(gfx.width(), gfx.height());
     g_mx = gfx.width() / 2;
     g_my = gfx.height() / 2;
@@ -137,6 +146,11 @@ extern "C" void luna_run(void)
     {
         g_cursor_saved = 0;
         desk.paint_tree(gfx);
+
+        if (g_icon_about.rgba)
+            gfx.blit_rgba(32, 32, g_icon_about.w, g_icon_about.h, g_icon_about.rgba);
+        gfx.draw_text(28, 68, "About", 0xFFE8ECF4u, 0);
+
         wm.paint_all(gfx);
         bar.paint_tree(gfx);
         if (menu.open && menu.visible)
