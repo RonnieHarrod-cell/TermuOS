@@ -9,6 +9,7 @@
 #include "desktop/desktop.hpp"
 #include "desktop/wm.hpp"
 #include "desktop/taskbar.hpp"
+#include "desktop/deskicon.hpp"
 #include "apps/app.hpp"
 
 extern "C"
@@ -21,8 +22,6 @@ extern "C"
 
 #include "icon.h"
 }
-
-static luna_icon_t g_icon_about;
 
 static constexpr int CURSOR_W = 12;
 static constexpr int CURSOR_H = 18;
@@ -107,11 +106,6 @@ extern "C" void luna_run(void)
     if (gfx.width() <= 0)
         return;
 
-    if (luna_icon_load("about.rgba", 32, 32, &g_icon_about) == 0)
-        kprintf("luna: about icon ok\n");
-    else
-        kprintf("luna: about icon missing\n");
-
     mouse_set_bounds(gfx.width(), gfx.height());
     g_mx = gfx.width() / 2;
     g_my = gfx.height() / 2;
@@ -142,15 +136,27 @@ extern "C" void luna_run(void)
     menu.add_item("Exit Luna", "System", action_exit, nullptr);
     bar.menu = &menu;
 
+    luna_icon_t about_ic{};
+    luna_icon_load("about.rgba", 32, 32, &about_ic);
+
+    DeskIcon icon_about;
+    icon_about.x = 24;
+    icon_about.y = 24;
+    icon_about.w = 72;
+    icon_about.h = 60;
+    icon_about.label = "About";
+    icon_about.rgba = about_ic.rgba;
+    icon_about.iw = about_ic.w;
+    icon_about.ih = about_ic.h;
+    icon_about.on_open = app_about_open;
+    icon_about.user = nullptr;
+
+    desk.add(&icon_about);
+
     auto composite = [&]()
     {
         g_cursor_saved = 0;
         desk.paint_tree(gfx);
-
-        if (g_icon_about.rgba)
-            gfx.blit_rgba(32, 32, g_icon_about.w, g_icon_about.h, g_icon_about.rgba);
-        gfx.draw_text(28, 68, "About", 0xFFE8ECF4u, 0);
-
         wm.paint_all(gfx);
         bar.paint_tree(gfx);
         if (menu.open && menu.visible)

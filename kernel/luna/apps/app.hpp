@@ -13,3 +13,5 @@ class Wm;
 extern Wm *g_luna_wm;
 
 void luna_apps_register_menu(class StartMenu &menu);
+
+void app_about_open(void *user);
