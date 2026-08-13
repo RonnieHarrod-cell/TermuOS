@@ -158,6 +158,9 @@ extern "C" void luna_run(void)
         g_cursor_saved = 0;
         desk.paint_tree(gfx);
         wm.paint_all(gfx);
+
+        app_terminal_paint();
+
         bar.paint_tree(gfx);
         if (menu.open && menu.visible)
             menu.paint_tree(gfx);
@@ -276,6 +279,7 @@ extern "C" void luna_run(void)
         if (keyboard_haschar())
         {
             char c = keyboard_getchar();
+
             if (c == 27)
             {
                 if (Focus::current())
@@ -290,12 +294,20 @@ extern "C" void luna_run(void)
                 continue;
             }
 
+            if (app_terminal_is_open())
+            {
+                if (c == '\r')
+                    c = '\n';
+                terminal_putchar(c);
+                app_terminal_paint();
+                continue;
+            }
+
             Event kev{};
             kev.type = EventType::KeyDown;
             kev.key = c;
             kev.x = g_mx;
             kev.y = g_my;
-
             if (Widget *f = Focus::current())
             {
                 f->on_event(kev);

@@ -12,9 +12,11 @@ static void trampoline(void *user)
 
 // openers declarations
 void app_about_open(void *user);
+void app_terminal_open(void *user);
 
 static LunaApp g_apps[] = {
     {"about", "About Luna", "Apps", app_about_open, nullptr},
+    {"terminal", "Terminal", "System", app_terminal_open, nullptr},
 };
 
 void luna_apps_register_menu(StartMenu &menu)
