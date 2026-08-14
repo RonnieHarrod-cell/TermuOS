@@ -5,7 +5,7 @@
 <h1 align="center">TermuOS</h1>
 
 <p align="center">
-  A lightweight, open-source x86_64 operating system built for learning kernel development and low-level programming.
+  A lightweight, open-source x86_64 operating system built for learning kernel development and low-level kernel programming.
 </p>
 
 <p align="center">
