@@ -12,4 +12,3 @@ typedef struct
 } rtc_time_t;
 
 void rtc_read(rtc_time_t *t);
-

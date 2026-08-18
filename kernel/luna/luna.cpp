@@ -18,8 +18,9 @@ extern "C"
 #include "../drivers/input/keyboard.h"
 #include "../drivers/video/fb.h"
 #include "../drivers/video/terminal.h"
+#include "../drivers/rtc/rtc.h"
+#include "../arch/x86_64/pit.h"
 #include "../lib/printf.h"
-
 #include "icon.h"
 }
 
@@ -173,8 +174,18 @@ extern "C" void luna_run(void)
     uint8_t prev_buttons = 0;
     Window *drag_win = nullptr;
 
+    static int last_min = -1;
+
     while (g_running)
     {
+        rtc_time_t t;
+        rtc_read(&t);
+        if ((int)t.minute != last_min)
+        {
+            last_min = t.minute;
+            bar.mark_dirty();
+        }
+
         bool full = false;
 
         if (mouse_is_dirty())

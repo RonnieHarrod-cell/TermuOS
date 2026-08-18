@@ -3,6 +3,11 @@
 #include "wm.hpp"
 #include "../theme.hpp"
 
+extern "C"
+{
+#include "../../drivers/rtc/rtc.h"
+}
+
 class Taskbar : public Widget
 {
 public:
@@ -38,6 +43,27 @@ public:
         else
             g.draw_raised(bx, by, bw, bh);
         g.draw_text(bx + 8, by + 4, "Start", Theme::text, Theme::face);
+
+        /* clock tray (right) */
+        rtc_time_t t;
+        rtc_read(&t);
+
+        char clock[16];
+        /* HH:MM */
+        clock[0] = '0' + (t.hour / 10);
+        clock[1] = '0' + (t.hour % 10);
+        clock[2] = ':';
+        clock[3] = '0' + (t.minute / 10);
+        clock[4] = '0' + (t.minute % 10);
+        clock[5] = '\0';
+
+        int cw = 54;
+        int ch = h - 6;
+        int cx = sx + w - cw - 4;
+        int cy = sy + 3;
+
+        g.draw_sunken(cx, cy, cw, ch);
+        g.draw_text(cx + 8, cy + 4, clock, Theme::text, Theme::face);
     }
 
     bool on_event(const Event &e) override
