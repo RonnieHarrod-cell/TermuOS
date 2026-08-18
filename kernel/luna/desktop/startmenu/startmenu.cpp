@@ -73,6 +73,54 @@ int StartMenu::sub_height(int cat) const
     return kPad * 2 + cats[cat].count * kItemH;
 }
 
+void StartMenu::relayout()
+{
+    int taskbar = 36;
+    int rh = root_height();
+
+    w = kPanelW;
+    h = rh;
+    x = 2;
+    y = screen_h_ - taskbar - rh - 2;
+    if (y < 2)
+        y = 2;
+
+    sub_offset_y = 0;
+
+    if (open_cat < 0 || open_cat >= cat_count)
+        return;
+
+    int sub_h = sub_height(open_cat);
+    sub_offset_y = kPad + open_cat * kItemH;
+
+    int abs_sub_y = y + sub_offset_y;
+    int bottom = screen_h_ - taskbar - 2;
+    if (abs_sub_y + sub_h > bottom)
+        abs_sub_y = bottom - sub_h;
+    if (abs_sub_y < 2)
+        abs_sub_y = 2;
+
+    sub_offset_y = abs_sub_y - y;
+
+    w = kPanelW * 2 - 2;
+
+    int need_h = sub_offset_y + sub_h;
+    if (need_h > h)
+        h = need_h;
+
+    if (sub_offset_y < 0)
+    {
+        y += sub_offset_y;
+        h -= sub_offset_y;
+        sub_offset_y = 0;
+        if (y < 2)
+        {
+            h -= (2 - y);
+            y = 2;
+        }
+    }
+}
+
 void StartMenu::close_menu()
 {
     open = false;
@@ -84,18 +132,14 @@ void StartMenu::close_menu()
 
 void StartMenu::toggle(int screen_h)
 {
+    screen_h_ = screen_h;
     open = !open;
     visible = open;
     open_cat = -1;
     if (open)
     {
         rebuild_categories();
-        w = kPanelW;
-        h = root_height();
-        x = 2;
-        y = screen_h - 36 - h - 2;
-        if (y < 2)
-            y = 2;
+        relayout();
     }
     else
     {
@@ -132,7 +176,7 @@ void StartMenu::paint(Gfx &g)
 
     int sub_h = sub_height(open_cat);
     int sub_x = sx + kPanelW - 2;
-    int sub_y = sy + kPad + open_cat * kItemH;
+    int sub_y = sy + sub_offset_y;
 
     g.draw_raised(sub_x, sub_y, kPanelW, sub_h);
 
@@ -161,7 +205,7 @@ bool StartMenu::on_event(const Event &e)
     int rh = root_height();
     int sub_h = (open_cat >= 0) ? sub_height(open_cat) : 0;
     int sub_x = sx + kPanelW - 2;
-    int sub_y = sy + kPad + (open_cat >= 0 ? open_cat * kItemH : 0);
+    int sub_y = sy + sub_offset_y;
 
     auto in_root = [&](int px, int py)
     {

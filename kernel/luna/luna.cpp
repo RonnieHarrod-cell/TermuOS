@@ -33,6 +33,16 @@ static uint32_t g_cursor_under[CURSOR_W * CURSOR_H];
 static bool g_running;
 static bool *g_running_ptr = nullptr;
 
+static Desktop *g_desk = nullptr;
+
+void luna_set_wallpaper(uint32_t colour)
+{
+    if (!g_desk)
+        return;
+    g_desk->wallpaper = colour;
+    g_desk->mark_dirty();
+}
+
 static void cursor_erase(Gfx &g)
 {
     if (!g_cursor_saved)
@@ -118,6 +128,8 @@ extern "C" void luna_run(void)
     desk.y = 0;
     desk.w = gfx.width();
     desk.h = gfx.height();
+    g_desk = &desk;
+    desk.wallpaper = Theme::desktop;
 
     Wm wm;
     desk.wm = &wm;

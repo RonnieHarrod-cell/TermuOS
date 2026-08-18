@@ -46,4 +46,8 @@ private:
     void rebuild_categories();
     int root_height() const;
     int sub_height(int cat) const;
+
+    int screen_h_ = 600;
+    int sub_offset_y = 0;
+    void relayout();
 };
