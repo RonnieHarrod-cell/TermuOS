@@ -12,9 +12,9 @@ gcc $CFLAGS -c libc/src/exit.c    -o libc/build/exit.o
 gcc $CFLAGS -c libc/crt0.S        -o libc/build/crt0.o
 
 # app
-gcc $CFLAGS -c apps/hello/main.c -o apps/hello/main.o
+gcc $CFLAGS -c apps/hello_libc/main.c -o apps/hello_libc/main.o
 
 # link: crt0 first, then main, then libc bits
-ld -static -nostdlib -o apps/hello/hello \
-  libc/build/crt0.o apps/hello/main.o \
+ld -static -nostdlib -o apps/hello_libc/hello_libc \
+  libc/build/crt0.o apps/hello_libc/main.o \
   libc/build/syscall.o libc/build/write.o libc/build/exit.o

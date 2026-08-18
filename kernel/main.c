@@ -139,15 +139,10 @@ void kernel_main(void)
     pci_init();
     virtio_net_init();
 
-    // luna_run();
-
-    process_t *shell_proc = proc_create("shell");
-    if (!shell_proc)
-        shell_proc = proc_kernel();
-
-    thread_t *shell_thread = thread_create("shell", shell_thread_entry, shell_proc);
-    if (!shell_thread)
-        kprintf("kernel: failed to create shell thread\n");
+    process_t *sp = proc_create("shell");
+    if (!sp)
+        sp = proc_kernel();
+    thread_create("shell", shell_thread_entry, sp);
 
     for (;;)
         __asm__ volatile("hlt");

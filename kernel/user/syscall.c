@@ -239,6 +239,14 @@ static uint64_t sys_exit(uint64_t code)
     if (t)
         t->state = THREAD_DEAD;
 
+    for (int i = 1; i < MAX_THREADS; i++)
+    {
+        if (i == prev)
+            continue;
+        if (threads[i].state == THREAD_RUNNING)
+            threads[i].state = THREAD_READY;
+    }
+
     int next = -1;
     for (int i = 1; i < MAX_THREADS; i++)
     {
@@ -254,7 +262,13 @@ static uint64_t sys_exit(uint64_t code)
 
     if (next < 0)
     {
-        kprintf("sys_exit: no other threads\n");
+        kprintf("sys_exit: no other threads (prev=%d)\n", prev);
+        for (int i = 0; i < MAX_THREADS; i++)
+        {
+            if (threads[i].state != THREAD_DEAD)
+                kprintf("  t%d state=%d name=%s\n",
+                        i, (int)threads[i].state, threads[i].name);
+        }
         __asm__ volatile("sti");
         for (;;)
             __asm__ volatile("hlt");
