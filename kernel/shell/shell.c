@@ -717,7 +717,7 @@ static void cmd_mkfs(int argc, char **argv)
         kprintf("mkfs: formatted but mount failed\n");
         return;
     }
-    vfs_mount("/mnt", tfs_get_root());
+    vfs_mount("/", tfs_get_root());
     kprintf("mkfs: done — disk mounted at /mnt\n");
 }
 

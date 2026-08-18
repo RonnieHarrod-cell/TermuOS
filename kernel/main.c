@@ -99,20 +99,6 @@ void kernel_main(void)
     mouse_init();
 
     vfs_init();
-    vfs_node_t *root = ramfs_create_root();
-    vfs_mount("/", root);
-    vfs_mkdir("/etc");
-    vfs_mkdir("/home");
-    vfs_mkdir("/home/root");
-    vfs_mkdir("/bin");
-    vfs_mkdir("/mnt");
-    int fd = vfs_open("/etc/motd", O_WRONLY | O_CREAT);
-    if (fd >= 0)
-    {
-        const char *motd = "Welcome to TermuOS\n";
-        vfs_write(fd, motd, 19);
-        vfs_close(fd);
-    }
 
     ata_init();
 
@@ -128,12 +114,24 @@ void kernel_main(void)
 
     if (tfs_mount() == 0)
     {
-        vfs_mount("/mnt", tfs_get_root());
-        kprintf("tfs: /mnt ready\n");
+        vfs_mount("/", tfs_get_root());
+        kprintf("tfs: root fs ready\n");
+
+        vfs_mkdir("/bin");
+        vfs_mkdir("/etc");
+        vfs_mkdir("/home");
+        vfs_mkdir("/home/root");
     }
     else
     {
-        kprintf("tfs: no disk or unformatted — run 'mkfs' to format\n");
+        kprintf("tfs: no disk — falling back to ramfs\n");
+        vfs_node_t *root = ramfs_create_root();
+        vfs_mount("/", root);
+        vfs_mkdir("/bin");
+        vfs_mkdir("/etc");
+        vfs_mkdir("/home");
+        vfs_mkdir("/home/root");
+        vfs_mkdir("/mnt");
     }
 
     pci_init();
