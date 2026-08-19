@@ -180,3 +180,26 @@ process_t *proc_kernel(void)
 {
   return &proc_table[0];
 }
+
+int proc_snapshot(process_t *out, int max_out)
+{
+  int n = 0;
+  for (int i = 0; i < MAX_PROCESSES && n < max_out; i++)
+  {
+    if (proc_table[i].state == PROC_DEAD)
+      continue;
+    out[n++] = proc_table[i];
+  }
+  return n;
+}
+
+int proc_kill(uint32_t pid)
+{
+  if (pid == 0)
+    return -1;
+  process_t *p = proc_get(pid);
+  if (!p || p->state == PROC_DEAD)
+    return -1;
+  proc_exit(p, -1);
+  return 0;
+}

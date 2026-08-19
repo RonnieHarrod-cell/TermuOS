@@ -32,3 +32,5 @@ void proc_exit(process_t *proc, int32_t code);
 void proc_list(void);
 process_t *proc_get(uint32_t pid);
 process_t *proc_kernel(void); // returns pid-0 kernel process
+int proc_snapshot(process_t *out, int max_out);
+int proc_kill(uint32_t pid);
