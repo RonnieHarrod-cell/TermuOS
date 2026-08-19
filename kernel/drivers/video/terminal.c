@@ -204,7 +204,7 @@ static void scroll_up(void)
     int fb_w = (int)fb->width;
 
     uint8_t *base = (uint8_t *)fb->address;
-int right = (int)term_offset_x + (int)_width;
+    int right = (int)term_offset_x + (int)_width;
     if (right > (int)fb->width)
         right = (int)fb->width;
 
@@ -241,8 +241,8 @@ void terminal_set_offset(uint64_t x, uint64_t y)
 
 void terminal_init(void)
 {
-    _fg = 0x00FF88;
-    _bg = 0x0D0D0D;
+    _fg = 0xFFFFFF;
+    _bg = 0x000000;
 }
 
 void terminal_set_size(uint64_t w, uint64_t h)
@@ -251,10 +251,14 @@ void terminal_set_size(uint64_t w, uint64_t h)
     _height = h;
     _cols = ((int)w - PADDING * 2) / FONT_W;
     _rows = ((int)h - PADDING * 2) / FONT_H;
-    if (_cols > TERM_MAX_COLS) _cols = TERM_MAX_COLS;
-    if (_rows > TERM_MAX_ROWS) _rows = TERM_MAX_ROWS;
-    if (_cols < 1) _cols = 1;
-    if (_rows < 1) _rows = 1;
+    if (_cols > TERM_MAX_COLS)
+        _cols = TERM_MAX_COLS;
+    if (_rows > TERM_MAX_ROWS)
+        _rows = TERM_MAX_ROWS;
+    if (_cols < 1)
+        _cols = 1;
+    if (_rows < 1)
+        _rows = 1;
     grid_cols = _cols;
     grid_rows = _rows;
 

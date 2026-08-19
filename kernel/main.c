@@ -18,6 +18,7 @@
 #include "fs/vfs.h"
 #include "fs/ramfs.h"
 #include "fs/tfs.h"
+#include "fs/devfs.h"
 #include "drivers/storage/ata.h"
 #include "drivers/net/pci.h"
 #include "drivers/net/virtio_net.h"
@@ -133,6 +134,8 @@ void kernel_main(void)
         vfs_mkdir("/home/root");
         vfs_mkdir("/mnt");
     }
+    vfs_mkdir("/dev");
+    vfs_mount("/dev", devfs_create());
 
     pci_init();
     virtio_net_init();
