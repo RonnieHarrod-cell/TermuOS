@@ -134,10 +134,8 @@ void kernel_main(void)
         vfs_mkdir("/home/root");
         vfs_mkdir("/mnt");
     }
-
     vfs_mkdir("/dev");
     vfs_mount("/dev", devfs_create());
-    kprintf("devfs: /dev ready\n");
 
     pci_init();
     virtio_net_init();

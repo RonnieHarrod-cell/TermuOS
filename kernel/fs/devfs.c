@@ -1,5 +1,7 @@
 #include "devfs.h"
 #include "../drivers/video/terminal.h"
+#include "../drivers/input/keyboard.h"
+#include "../sched/scheduler.h"
 #include "../lib/string.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -46,9 +48,15 @@ static int dev_zero_write(uint64_t off, size_t len, const uint8_t *buf)
 static int dev_console_read(uint64_t off, size_t len, uint8_t *buf)
 {
     (void)off;
-    (void)len;
-    (void)buf;
-    return 0;
+    if (!buf || len == 0)
+        return 0;
+
+    while (!keyboard_haschar())
+        scheduler_yield();
+
+    char c = keyboard_getchar();
+    buf[0] = (uint8_t)c;
+    return 1;
 }
 
 static int dev_console_write(uint64_t off, size_t len, const uint8_t *buf)
