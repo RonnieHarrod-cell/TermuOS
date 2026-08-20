@@ -267,7 +267,7 @@ extern "C" void luna_run(void)
                 {
                     drag_win = nullptr;
                     full = true;
-                } f
+                }
             }
 
             if (desk.dirty || bar.dirty || menu.dirty)
