@@ -125,6 +125,78 @@ static int write_block(uint32_t blk, const void *buf)
     return 0;
 }
 
+static int32_t block_alloc(void);
+
+// returns fs data-block index, or 0 if hole / error
+static uint32_t tfs_block_at(const tfs_inode_t *ino, uint32_t blk_idx)
+{
+    if (blk_idx < TFS_NUM_DIRECT)
+        return ino->blocks[blk_idx];
+
+    uint32_t ind = ino->blocks[TFS_NUM_DIRECT]; // slot 9
+    if (!ind)
+        return 0;
+
+    static uint8_t ibuf[TFS_BLOCK_SIZE];
+    if (read_block(ind, ibuf) < 0)
+        return 0;
+
+    uint32_t *ptrs = (uint32_t *)ibuf;
+    uint32_t ii = blk_idx - TFS_NUM_DIRECT;
+    if (ii >= TFS_INDIRECT_PTRS)
+        return 0;
+    return ptrs[ii];
+}
+
+static int tfs_get_or_alloc(tfs_inode_t *ino, uint32_t blk_idx, uint32_t *out)
+{
+    if (blk_idx < TFS_NUM_DIRECT)
+    {
+        if (!ino->blocks[blk_idx])
+        {
+            uint32_t b = block_alloc();
+            if (!b)
+                return -1;
+            ino->blocks[blk_idx] = b;
+        }
+        *out = ino->blocks[blk_idx];
+        return 0;
+    }
+
+    uint32_t ii = blk_idx - TFS_NUM_DIRECT;
+    if (ii >= TFS_INDIRECT_PTRS)
+        return -1;
+
+    if (!ino->blocks[TFS_NUM_DIRECT])
+    {
+        uint32_t ib = block_alloc();
+        if (!ib)
+            return -1;
+        static uint8_t zero[TFS_BLOCK_SIZE];
+        tfs_memset(zero, 0, TFS_BLOCK_SIZE);
+        if (write_block(ib, zero) < 0)
+            return -1;
+        ino->blocks[TFS_NUM_DIRECT] = ib;
+    }
+
+    static uint8_t ibuf[TFS_BLOCK_SIZE];
+    if (read_block(ino->blocks[TFS_NUM_DIRECT], ibuf) < 0)
+        return -1;
+
+    uint32_t *ptrs = (uint32_t *)ibuf;
+    if (!ptrs[ii])
+    {
+        uint32_t b = block_alloc();
+        if (!b)
+            return -1;
+        ptrs[ii] = b;
+        if (write_block(ino->blocks[TFS_NUM_DIRECT], ibuf) < 0)
+            return -1;
+    }
+    *out = ptrs[ii];
+    return 0;
+}
+
 // Superblock
 
 static int super_read(void)
@@ -377,9 +449,10 @@ static int tfs_read(vfs_node_t *node, uint64_t off, size_t len, uint8_t *buf)
     {
         uint32_t blk_idx = (uint32_t)((off + done) / TFS_BLOCK_SIZE);
         uint32_t blk_off = (uint32_t)((off + done) % TFS_BLOCK_SIZE);
-        if (blk_idx >= TFS_MAX_DIRECT || !ino.blocks[blk_idx])
+        uint32_t dblk = tfs_block_at(&ino, blk_idx);
+        if (!dblk)
             break;
-        if (read_block(ino.blocks[blk_idx], blkbuf) < 0)
+        if (read_block(dblk, blkbuf) < 0)
             break;
         size_t chunk = TFS_BLOCK_SIZE - blk_off;
         if (chunk > len - done)
@@ -399,13 +472,30 @@ static int tfs_write(vfs_node_t *node, uint64_t off, size_t len, const uint8_t *
     // Truncate: len==0 and buf==0 means truncate to zero
     if (len == 0 && buf == 0)
     {
-        for (int b = 0; b < TFS_MAX_DIRECT; b++)
+        // direct
+        for (int b = 0; b < TFS_NUM_DIRECT; b++)
         {
             if (ino.blocks[b])
             {
                 block_free(ino.blocks[b]);
                 ino.blocks[b] = 0;
             }
+        }
+        // indirect
+        if (ino.blocks[TFS_NUM_DIRECT])
+        {
+            static uint8_t ibuf[TFS_BLOCK_SIZE];
+            if (read_block(ino.blocks[TFS_NUM_DIRECT], ibuf) == 0)
+            {
+                uint32_t *ptrs = (uint32_t *)ibuf;
+                for (uint32_t i = 0; i < TFS_INDIRECT_PTRS; i++)
+                {
+                    if (ptrs[i])
+                        block_free(ptrs[i]);
+                }
+            }
+            block_free(ino.blocks[TFS_NUM_DIRECT]);
+            ino.blocks[TFS_NUM_DIRECT] = 0;
         }
         ino.size = 0;
         node->size = 0;
@@ -419,24 +509,18 @@ static int tfs_write(vfs_node_t *node, uint64_t off, size_t len, const uint8_t *
     {
         uint32_t blk_idx = (uint32_t)((off + done) / TFS_BLOCK_SIZE);
         uint32_t blk_off = (uint32_t)((off + done) % TFS_BLOCK_SIZE);
-        if (blk_idx >= TFS_MAX_DIRECT)
+        uint32_t dblk;
+
+        if (tfs_get_or_alloc(&ino, blk_idx, &dblk) < 0)
             break;
 
-        if (!ino.blocks[blk_idx])
-        {
-            int32_t nb = block_alloc();
-            if (nb < 0)
-                break;
-            ino.blocks[blk_idx] = (uint32_t)nb;
-        }
-
-        if (read_block(ino.blocks[blk_idx], blkbuf) < 0)
+        if (read_block(dblk, blkbuf) < 0)
             break;
         size_t chunk = TFS_BLOCK_SIZE - blk_off;
         if (chunk > len - done)
             chunk = len - done;
         tfs_memcpy(blkbuf + blk_off, buf + done, chunk);
-        if (write_block(ino.blocks[blk_idx], blkbuf) < 0)
+        if (write_block(dblk, blkbuf) < 0)
             break;
         done += chunk;
     }
