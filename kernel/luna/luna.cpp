@@ -267,7 +267,7 @@ extern "C" void luna_run(void)
                 {
                     drag_win = nullptr;
                     full = true;
-                }
+                } f
             }
 
             if (desk.dirty || bar.dirty || menu.dirty)
@@ -278,6 +278,9 @@ extern "C" void luna_run(void)
                 if (wm.stack[i] && wm.stack[i]->dirty)
                     full = true;
             }
+
+            if (app_explorer_is_open())
+                app_explorer_click(ev.x, ev.y);
 
             if (full)
             {
