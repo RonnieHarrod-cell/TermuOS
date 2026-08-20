@@ -16,7 +16,9 @@
 #define TFS_BLOCK_SECTORS (TFS_BLOCK_SIZE / TFS_SECTOR_SIZE)
 #define TFS_MAX_INODES 512
 #define TFS_INODE_SIZE 64
-#define TFS_MAX_DIRECT 10 // direct block pointers per inode
+#define TFS_NUM_DIRECT 9
+#define TFS_MAX_DIRECT 10                                     // direct block pointers per inode
+#define TFS_INDIRECT_PTRS (TFS_BLOCK_SIZE / sizeof(uint32_t)) // 1024
 #define TFS_NAME_MAX 48
 
 #define TFS_LBA_SUPER 0
