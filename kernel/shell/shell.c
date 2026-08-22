@@ -818,7 +818,18 @@ static void cmd_run(int argc, char **argv)
 
     // exec the ELF directly (full permissions - no manifest to read them from)
     kprintf("run: launching %s\n", path);
-    int pid = exec_launch(path, 0xffffffff);
+
+    char *av[MAX_ARGS];
+    int ac = 0;
+
+    av[ac++] = path;
+
+    for (int i = 2; i < argc && ac < MAX_ARGS - 1; i++)
+        av[ac++] = argv[i];
+
+    av[ac] = 0;
+
+    int pid = exec_launch_args(path, 0xffffffff, ac, av);
     if (pid < 0)
     {
         kprintf("run: launch failed\n");
@@ -832,6 +843,74 @@ static void cmd_run(int argc, char **argv)
             break;
         scheduler_yield();
     }
+}
+
+static int shell_exec_path(const char *path)
+{
+    uint32_t type;
+    if (vfs_stat(path, &type, NULL) < 0)
+        return -1;
+    if (type != VFS_FILE)
+        return -1;
+
+    kprintf("run: launching %s\n", path);
+    int pid = exec_launch(path, 0xffffffff);
+    if (pid < 0)
+        return -1;
+
+    for (;;)
+    {
+        process_t *p = proc_get((uint32_t)pid);
+        if (!p || p->state == PROC_ZOMBIE || p->state == PROC_DEAD)
+            break;
+        scheduler_yield();
+    }
+    return 0;
+}
+
+static int shell_try_tsys(int argc, char **argv)
+{
+    static char path[VFS_PATH_MAX];
+    const char *cmd = argv[0];
+    int i = 0;
+    const char *pfx = "/bin/";
+    const char *sfx = ".tsys";
+
+    while (pfx[i])
+    {
+        path[i] = pfx[i];
+        i++;
+    }
+    for (int j = 0; cmd[j] && i < VFS_PATH_MAX - 6; j++)
+        path[i++] = cmd[j];
+    for (int j = 0; sfx[j] && i < VFS_PATH_MAX - 1; j++)
+        path[i++] = sfx[j];
+    path[i] = '\0';
+
+    uint32_t type;
+    if (vfs_stat(path, &type, NULL) < 0 || type != VFS_FILE)
+        return -1;
+
+    char *av[MAX_ARGS];
+    int ac = 0;
+    av[ac++] = path;
+    for (int j = 1; j < argc && ac < MAX_ARGS - 1; j++)
+        av[ac++] = argv[j];
+    av[ac] = 0;
+
+    kprintf("run: launching %s\n", path);
+    int pid = exec_launch_args(path, 0xffffffff, ac, av);
+    if (pid < 0)
+        return -1;
+
+    for (;;)
+    {
+        process_t *p = proc_get((uint32_t)pid);
+        if (!p || p->state == PROC_ZOMBIE || p->state == PROC_DEAD)
+            break;
+        scheduler_yield();
+    }
+    return 0;
 }
 
 // ─── Dispatch ─────────────────────────────────────────────────────────────────
@@ -888,7 +967,8 @@ static void dispatch(char *line)
             commands[i].fn(argc, argv);
             return;
         }
-    kprintf("tsh: command not found: %s\n", argv[0]);
+    if (shell_try_tsys(argc, argv) < 0)
+        kprintf("tsh: command not found: %s\n", argv[0]);
 }
 
 void print_prompt(void)

@@ -1,10 +1,12 @@
 #include "devfs.h"
 #include "../drivers/video/terminal.h"
+#include "../drivers/video/fb.h"
 #include "../drivers/input/keyboard.h"
 #include "../sched/scheduler.h"
 #include "../lib/string.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <limine.h>
 
 typedef struct
 {
@@ -12,6 +14,14 @@ typedef struct
     int (*read)(uint64_t off, size_t len, uint8_t *buf);
     int (*write)(uint64_t off, size_t len, const uint8_t *buf);
 } devfs_device_t;
+
+struct fb0_info
+{
+    uint32_t width;
+    uint32_t height;
+    uint32_t pitch;
+    uint32_t bpp;
+};
 
 // devices
 
@@ -67,10 +77,41 @@ static int dev_console_write(uint64_t off, size_t len, const uint8_t *buf)
     return (int)len;
 }
 
+static int dev_fb0_read(uint64_t off, size_t len, uint8_t *buf)
+{
+    struct limine_framebuffer *fb = fb_get();
+    if (!fb || !buf)
+        return -1;
+
+    struct fb0_info info;
+    info.width = (uint32_t)fb->width;
+    info.height = (uint32_t)fb->height;
+    info.pitch = (uint32_t)fb->pitch;
+    info.bpp = (uint32_t)fb->bpp;
+
+    if (off >= sizeof(info))
+        return 0;
+    size_t n = sizeof(info) - (size_t)off;
+    if (n > len)
+        n = len;
+    const uint8_t *src = (const uint8_t *)&info + off;
+    for (size_t i = 0; i < n; i++)
+        buf[i] = src[i];
+    return (int)n;
+}
+
+static int dev_fb0_write(uint64_t off, size_t len, const uint8_t *buf)
+{
+    (void)off;
+    (void)buf;
+    return (int)len;
+}
+
 static devfs_device_t g_devs[] = {
     {"null", dev_null_read, dev_null_write},
     {"zero", dev_zero_read, dev_zero_write},
     {"console", dev_console_read, dev_console_write},
+    {"fb0", dev_fb0_read, dev_fb0_write},
 };
 #define N_DEVS (sizeof(g_devs) / sizeof(g_devs[0]))
 

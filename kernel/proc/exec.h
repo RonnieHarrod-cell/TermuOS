@@ -33,3 +33,4 @@
 // On failure, returns -1 (process pagemap may be partially populated;
 // caller should destroy the process).
 int exec_load(const char *vfs_path, process_t *proc, uint64_t *entry_out);
+uint64_t exec_setup_user_stack(process_t *proc, int argc, char *const argv[]);

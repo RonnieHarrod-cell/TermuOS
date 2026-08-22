@@ -18,6 +18,8 @@ typedef struct
 } launch_ctx_t;
 
 int exec_launch(const char *vfs_path, uint32_t perm_mask);
+int exec_launch_args(const char *vfs_path, uint32_t perm_mask,
+                     int argc, char *const argv[]);
 
 int proc_check_perm(uint32_t perm);
 

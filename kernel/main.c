@@ -84,7 +84,7 @@ void kernel_main(void)
     terminal_init();
     terminal_set_offset(0, 0);
     terminal_set_size(fb->width, fb->height);
-    fb_clear(0x0D0D0D);
+    fb_clear(0x000000);
 
     gdt_init();
     tss_set_kernel_stack(gdt_get_exception_stack());

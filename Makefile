@@ -128,9 +128,37 @@ OBJS += \
        $(BUILD_DIR)/kernel/user/syscall_asm.o \
        $(BUILD_DIR)/kernel/user/userspace_asm.o
 
-KERNEL = kernel.elf
+TSYS_CC      := gcc
+TSYS_CFLAGS  := -static -nostdlib -no-pie -ffreestanding \
+                -fno-stack-protector -fno-asynchronous-unwind-tables \
+                -fcf-protection=none -O2 -Wall \
+                -Itsys/lib
+
+TSYS_CRT0    := tsys/lib/crt0.S
+TSYS_OUT     := $(BUILD_DIR)/tsys
+DISK_IMG     ?= disk.img
+TFS_WRITE    := ./tools/tfs_write
+
+.PHONY: all iso run clean tsys tsys-clean tsys-install
 
 all: iso
+
+$(TSYS_OUT):
+	@mkdir -p $(TSYS_OUT)
+
+$(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) | $(TSYS_OUT)
+	$(Q)printf "  [TSYS]  echo.tsys\n"
+	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/echo/echo.c
+
+tsys: $(TSYS_OUT)/echo.tsys
+
+tsys-clean:
+	rm -rf $(TSYS_OUT)
+
+tsys-install: tsys tools/tfs_write tools/mkfs_tfs disk.img
+	$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/echo.tsys /bin/echo.tsys
+
+KERNEL = kernel.elf
 
 $(BUILD_DIR)/%.o: %.c $(CONFIG_HEADER)
 	@mkdir -p $(dir $@)
@@ -169,7 +197,7 @@ iso: $(KERNEL)
 		limine.conf=iso/limine.conf \
 		-o termuos.iso
 
-run: iso disk.img tools/tfs_write
+run: iso tsys-install
 	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
 		-netdev user,id=net0 \
               -device virtio-net-pci,netdev=net0 \

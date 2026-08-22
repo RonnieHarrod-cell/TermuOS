@@ -28,7 +28,8 @@ static void exec_thread_entry()
   thread_exit();
 }
 
-int exec_launch(const char *vfs_path, uint32_t perm_mask)
+int exec_launch_args(const char *vfs_path, uint32_t perm_mask,
+                     int argc, char *const argv[])
 {
   if (!vfs_path)
     return -1;
@@ -53,6 +54,18 @@ int exec_launch(const char *vfs_path, uint32_t perm_mask)
     return -1;
   }
 
+  char *default_av[2];
+  if (argc < 1 || !argv)
+  {
+    default_av[0] = (char *)vfs_path;
+    default_av[1] = 0;
+    argv = default_av;
+    argc = 1;
+  }
+
+  uint64_t rsp = exec_setup_user_stack(proc, argc, argv);
+  // uint64_t rsp = EXEC_USER_STACK_TOP;
+
   launch_ctx_t *ctx = (launch_ctx_t *)kmalloc(sizeof(launch_ctx_t));
   if (!ctx)
   {
@@ -62,7 +75,7 @@ int exec_launch(const char *vfs_path, uint32_t perm_mask)
   }
 
   ctx->entry = entry;
-  ctx->stack_top = EXEC_USER_STACK_TOP;
+  ctx->stack_top = rsp;
   ctx->pagemap = proc->pagemap;
   ctx->perm_mask = perm_mask;
 
@@ -71,14 +84,23 @@ int exec_launch(const char *vfs_path, uint32_t perm_mask)
   thread_t *t = thread_create(name, exec_thread_entry, proc);
   if (!t)
   {
-    kprintf("exec: failed to create thread for '%s'\n", vfs_path);
+    kprintf("exec: failed to create thread for '%s'\n", name);
     kfree(ctx);
     proc_exit(proc, -1);
     return -1;
   }
 
-  kprintf("exec: scheduled '%s' (pid %u, tid %u)\n", name, proc->pid, (uint32_t)t->id);
+  kprintf("exec: scheduled '%s' (pid %u, tid %u)\n",
+          name, proc->pid, (uint32_t)t->id);
   return (int)proc->pid;
+}
+
+int exec_launch(const char *vfs_path, uint32_t perm_mask)
+{
+  char *av[2];
+  av[0] = (char *)vfs_path;
+  av[1] = 0;
+  return exec_launch_args(vfs_path, perm_mask, 1, av);
 }
 
 static uint32_t current_perm_mask = 0xffffffff; // kernel: all perms

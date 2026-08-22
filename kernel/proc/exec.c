@@ -294,3 +294,110 @@ int exec_load(const char *vfs_path, process_t *proc, uint64_t *entry_out)
           (uint32_t)ehdr->e_entry);
   return 0;
 }
+
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 4096ULL
+#endif
+
+static void *user_to_kptr(process_t *proc, uint64_t uva)
+{
+  uint64_t page_uva = uva & ~(PAGE_SIZE - 1);
+  uint64_t phys = vmm_virt_to_phys(proc->pagemap, page_uva);
+
+  /* PTE → phys page: drop NX/flags; keep addr bits 51:12 */
+  phys &= 0x000FFFFFFFFFF000ULL;
+
+  if (!phys)
+    return 0;
+
+  uint64_t k = hhdm_base + phys + (uva & (PAGE_SIZE - 1));
+  return (void *)k;
+}
+
+static int on_user_stack(uint64_t uva)
+{
+  uint64_t bottom = EXEC_USER_STACK_TOP - EXEC_USER_STACK_PAGES * PAGE_SIZE;
+  return uva >= bottom && uva < EXEC_USER_STACK_TOP;
+}
+
+static void put_u64_user(process_t *proc, uint64_t uva, uint64_t val)
+{
+  if (!on_user_stack(uva) || !on_user_stack(uva + 7))
+  {
+    kprintf("exec: put_u64 off stack uva=0x%x\n", (uint32_t)uva);
+    return;
+  }
+
+  uint8_t *p = (uint8_t *)user_to_kptr(proc, uva);
+  if (!p)
+    return;
+  for (int i = 0; i < 8; i++)
+    p[i] = (uint8_t)(val >> (8 * i));
+}
+
+static void put_bytes_user(process_t *proc, uint64_t uva, const void *src, size_t n)
+{
+  const uint8_t *s = (const uint8_t *)src;
+  for (size_t i = 0; i < n; i++)
+  {
+    uint8_t *p = (uint8_t *)user_to_kptr(proc, uva + i);
+    if (!p)
+      return;
+    *p = s[i];
+  }
+}
+
+static size_t exec_strlen(const char *s)
+{
+  size_t n = 0;
+  if (!s)
+    return 0;
+  while (s[n])
+    n++;
+  return n;
+}
+
+uint64_t exec_setup_user_stack(process_t *proc, int argc, char *const argv[])
+{
+  uint64_t sp = EXEC_USER_STACK_TOP;
+  uint64_t str_ptr[32];
+  int i;
+
+  if (!proc)
+    return EXEC_USER_STACK_TOP;
+
+  if (argc < 1 || !argv)
+    argc = 0;
+  if (argc > 32)
+    argc = 32;
+
+  for (i = argc - 1; i >= 0; i--)
+  {
+    const char *s = argv[i] ? argv[i] : "";
+    size_t len = 0;
+    while (s[len])
+      len++;
+    sp -= len + 1;
+    put_bytes_user(proc, sp, s, len + 1);
+    str_ptr[i] = sp;
+  }
+
+  sp &= ~0xFULL;
+
+  sp -= 8;
+  put_u64_user(proc, sp, 0); /* envp NULL */
+
+  sp -= 8;
+  put_u64_user(proc, sp, 0); /* argv NULL */
+
+  for (i = argc - 1; i >= 0; i--)
+  {
+    sp -= 8;
+    put_u64_user(proc, sp, str_ptr[i]);
+  }
+
+  sp -= 8;
+  put_u64_user(proc, sp, (uint64_t)(uint32_t)argc);
+
+  return sp;
+}
