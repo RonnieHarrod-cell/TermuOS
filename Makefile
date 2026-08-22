@@ -254,4 +254,4 @@ run: iso $(DISK_IMG) tools/tfs_write tsys-install
 		-serial stdio
 
 clean:
-	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/
+	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img

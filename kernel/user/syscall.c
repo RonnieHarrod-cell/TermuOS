@@ -311,15 +311,31 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 
 static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 {
-    if (fd != 0 || !buf || !len)
+    if (!buf || !len)
         return (uint64_t)-1;
 
-    while (!keyboard_haschar())
-        scheduler_yield();
+    if ((int)fd == 0)
+    {
+        while (!keyboard_haschar())
+            scheduler_yield();
+        char c = keyboard_getchar();
+        /* TODO: copy_to_user(buf, &c, 1) */
+        *(volatile char *)buf = c;
+        return 1;
+    }
 
-    char c = keyboard_getchar();
-    *(volatile char *)buf = c;
-    return 1;
+    if (len > 256)
+        len = 256;
+    uint8_t tmp[256];
+    int n = vfs_read((int)fd, tmp, (size_t)len);
+    if (n <= 0)
+        return (uint64_t)(int64_t)n;
+
+    /* copy tmp → user buf byte by byte via user page walk / existing helper */
+    for (int i = 0; i < n; i++)
+        ((volatile char *)buf)[i] = (char)tmp[i]; /* same caveat as above */
+
+    return (uint64_t)n;
 }
 
 static uint64_t sys_open(uint64_t path, uint64_t flags, uint64_t mode)
