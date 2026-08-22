@@ -220,12 +220,16 @@ $(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
 	$(Q)printf "  [TSYS]  echo.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/echo/echo.c $(TSYS_LIB_A)
 
+$(TSYS_OUT)/uname.tsys: tsys/uname/uname.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+	$(Q)printf "  [TSYS]  uname.tsys\n"
+	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/uname/uname.c $(TSYS_LIB_A)
+
 # Add more apps here, e.g.:
 # $(TSYS_OUT)/hello.tsys: tsys/hello/hello.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
 #	$(Q)printf "  [TSYS]  hello.tsys\n"
 #	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/hello/hello.c $(TSYS_LIB_A)
 
-TSYS_BINS := $(TSYS_OUT)/echo.tsys
+TSYS_BINS := $(TSYS_OUT)/echo.tsys $(TSYS_OUT)/uname.tsys
 
 tsys: $(TSYS_BINS)
 
@@ -236,6 +240,8 @@ tsys-clean:
 tsys-install: tsys tools/tfs_write $(DISK_IMG)
 	$(Q)printf "  [INST]  /bin/echo.tsys\n"
 	$(Q)$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/echo.tsys /bin/echo.tsys
+	$(Q)printf "  [INST]  /bin/uname.tsys\n"
+	$(Q)$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/uname.tsys /bin/uname.tsys
 
 # ---------------------------------------------------------------------------
 # Run: ISO + disk + install tsys into the image
