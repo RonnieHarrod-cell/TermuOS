@@ -280,24 +280,6 @@ static void cmd_clear(int argc, char **argv)
     kprintf("%c", '\014');
 }
 
-static void cmd_echo(int argc, char **argv)
-{
-    for (int i = 1; i < argc; i++)
-    {
-        kprintf("%s", argv[i]);
-        if (i < argc - 1)
-            terminal_putchar(' ');
-    }
-    kprintf("\n");
-}
-
-static void cmd_uname(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    kprintf("TermuOS 0.1.0 x86_64\n");
-}
-
 static void cmd_uptime(int argc, char **argv)
 {
     (void)argc;
@@ -923,8 +905,6 @@ typedef struct
 static const command_t commands[] = {
     {"help", cmd_help},
     {"clear", cmd_clear},
-    {"echo", cmd_echo},
-    {"uname", cmd_uname},
     {"uptime", cmd_uptime},
     {"mem", cmd_mem},
     {"threads", cmd_threads},
