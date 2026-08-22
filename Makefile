@@ -26,6 +26,16 @@ quiet_CXX = $(Q)printf "  ${C_CXX}[C++]${C_RESET}   %s\n" "$<";
 quiet_ASM = $(Q)printf "  ${C_ASM}[ASM]${C_RESET}   %s\n" "$<";
 quiet_LD  = $(Q)printf "  ${C_LD}[LD]${C_RESET}   %s\n" "$@";
 
+# ---------------------------------------------------------------------------
+# Default goal FIRST
+# ---------------------------------------------------------------------------
+.PHONY: all iso run clean tsys tsys-clean tsys-install
+
+all: iso
+
+# ---------------------------------------------------------------------------
+# Kernel
+# ---------------------------------------------------------------------------
 SRCS :=
 CPPSRCS :=
 
@@ -45,7 +55,7 @@ SRCS += \
        kernel/arch/x86_64/idt.c \
        kernel/arch/x86_64/pic.c \
        kernel/arch/x86_64/pit.c \
-	   kernel/arch/x86_64/fpu.c \
+       kernel/arch/x86_64/fpu.c \
        kernel/drivers/rtc/rtc.c
 
 SRCS += \
@@ -74,15 +84,12 @@ CPPSRCS += kernel/luna/apps/explorer.cpp
 
 SRCS += \
        kernel/drivers/input/keyboard.c \
-	   kernel/drivers/input/mouse.c \
+       kernel/drivers/input/mouse.c \
        kernel/sched/scheduler.c
 
 SRCS += kernel/proc/process.c
-
 SRCS += kernel/luna/icon.c
-
 SRCS += kernel/ob/object.c
-
 SRCS += kernel/io/ioman.c
 SRCS += kernel/drivers/storage/ata_ioman.c
 SRCS += kernel/drivers/input/keyboard_ioman.c
@@ -109,10 +116,9 @@ SRCS += \
        kernel/fs/vfs.c \
        kernel/fs/ramfs.c \
        kernel/fs/tfs.c \
-	   kernel/fs/devfs.c
+       kernel/fs/devfs.c
 
 SRCS += kernel/shell/shell.c
-
 SRCS += \
        kernel/user/syscall.c \
        kernel/user/userspace.c
@@ -122,49 +128,17 @@ OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS)) \
        $(BUILD_DIR)/kernel/arch/x86_64/entry.o \
        $(BUILD_DIR)/kernel/arch/x86_64/gdt_asm.o \
        $(BUILD_DIR)/kernel/arch/x86_64/isr.o \
-       $(BUILD_DIR)/kernel/sched/context_switch.o
-
-OBJS += \
+       $(BUILD_DIR)/kernel/sched/context_switch.o \
        $(BUILD_DIR)/kernel/user/syscall_asm.o \
        $(BUILD_DIR)/kernel/user/userspace_asm.o
 
-TSYS_CC      := gcc
-TSYS_CFLAGS  := -static -nostdlib -no-pie -ffreestanding \
-                -fno-stack-protector -fno-asynchronous-unwind-tables \
-                -fcf-protection=none -O2 -Wall \
-                -Itsys/lib
-
-TSYS_CRT0    := tsys/lib/crt0.S
-TSYS_OUT     := $(BUILD_DIR)/tsys
-DISK_IMG     ?= disk.img
-TFS_WRITE    := ./tools/tfs_write
-
-.PHONY: all iso run clean tsys tsys-clean tsys-install
-
-all: iso
-
-$(TSYS_OUT):
-	@mkdir -p $(TSYS_OUT)
-
-$(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) | $(TSYS_OUT)
-	$(Q)printf "  [TSYS]  echo.tsys\n"
-	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/echo/echo.c
-
-tsys: $(TSYS_OUT)/echo.tsys
-
-tsys-clean:
-	rm -rf $(TSYS_OUT)
-
-tsys-install: tsys tools/tfs_write tools/mkfs_tfs disk.img
-	$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/echo.tsys /bin/echo.tsys
-
 KERNEL = kernel.elf
 
-$(BUILD_DIR)/%.o: %.c $(CONFIG_HEADER)
+$(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(quiet_C) $(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: %.cpp $(CONFIG_HEADER)
+$(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(quiet_CXX) $(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -186,7 +160,7 @@ iso: $(KERNEL)
 	@cp limine.conf iso/limine.conf
 	@mkdir -p iso/boot/icons
 	@cp assets/icons/*.rgba iso/boot/icons/ 2>/dev/null || true
-	@cp assets/logo.png iso/boot/
+	@cp assets/logo.png iso/boot/ 2>/dev/null || true
 	@xorriso -as mkisofs \
 		-b boot/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
@@ -197,25 +171,81 @@ iso: $(KERNEL)
 		limine.conf=iso/limine.conf \
 		-o termuos.iso
 
-run: iso tsys-install
-	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
-		-netdev user,id=net0 \
-              -device virtio-net-pci,netdev=net0 \
-		-drive file=disk.img,format=raw,if=ide \
-		-serial stdio
+# ---------------------------------------------------------------------------
+# Host tools
+# ---------------------------------------------------------------------------
+tools/mkfs_tfs: tools/mkfs_tfs.c
+	@cc -O2 -o tools/mkfs_tfs tools/mkfs_tfs.c
+
+tools/tfs_write: tools/tfs_write.c
+	@cc -O2 -o tools/tfs_write tools/tfs_write.c
 
 disk.img: tools/mkfs_tfs
 	@./tools/mkfs_tfs disk.img 64
 
-tools/mkfs_tfs: tools/mkfs_tfs.c
-	@cc -O2 -o tools/mkfs_tfs tools/mkfs_tfs.c
+# ---------------------------------------------------------------------------
+# tsys userspace + libtsys
+# ---------------------------------------------------------------------------
+TSYS_CC      := gcc
+TSYS_CFLAGS  := -static -nostdlib -no-pie -ffreestanding \
+                -fno-stack-protector -fno-asynchronous-unwind-tables \
+                -fcf-protection=none -O2 -Wall \
+                -Itsys/lib/include
 
-tools/tfs_write:
-	@cc -O2 -o tools/tfs_write tools/tfs_write.c
+TSYS_CRT0    := tsys/lib/crt0.S
+TSYS_OUT     := $(BUILD_DIR)/tsys
+TSYS_LIB_A   := $(TSYS_OUT)/libtsys.a
+DISK_IMG     ?= disk.img
+TFS_WRITE    := ./tools/tfs_write
 
-limine:
-	git clone https://github.com/limine-bootloader/limine.git \
-		--branch=v8.x-binary --depth=1
+TSYS_LIB_SRCS := \
+	tsys/lib/src/syscall.c \
+	tsys/lib/src/unistd.c \
+	tsys/lib/src/string.c
+
+TSYS_LIB_OBJS := $(patsubst tsys/lib/src/%.c,$(TSYS_OUT)/lib/%.o,$(TSYS_LIB_SRCS))
+
+$(TSYS_OUT) $(TSYS_OUT)/lib:
+	mkdir -p $@
+
+$(TSYS_OUT)/lib/%.o: tsys/lib/src/%.c | $(TSYS_OUT)/lib
+	$(Q)printf "  [TSYS]  %s\n" "$<"
+	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -c $< -o $@
+
+$(TSYS_LIB_A): $(TSYS_LIB_OBJS)
+	$(Q)printf "  [AR]    libtsys.a\n"
+	$(Q)ar rcs $@ $^
+
+$(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+	$(Q)printf "  [TSYS]  echo.tsys\n"
+	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/echo/echo.c $(TSYS_LIB_A)
+
+# Add more apps here, e.g.:
+# $(TSYS_OUT)/hello.tsys: tsys/hello/hello.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+#	$(Q)printf "  [TSYS]  hello.tsys\n"
+#	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/hello/hello.c $(TSYS_LIB_A)
+
+TSYS_BINS := $(TSYS_OUT)/echo.tsys
+
+tsys: $(TSYS_BINS)
+
+tsys-clean:
+	rm -rf $(TSYS_OUT)
+
+# Requires existing TFS disk.img (make disk.img once after mkfs)
+tsys-install: tsys tools/tfs_write $(DISK_IMG)
+	$(Q)printf "  [INST]  /bin/echo.tsys\n"
+	$(Q)$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/echo.tsys /bin/echo.tsys
+
+# ---------------------------------------------------------------------------
+# Run: ISO + disk + install tsys into the image
+# ---------------------------------------------------------------------------
+run: iso $(DISK_IMG) tools/tfs_write tsys-install
+	@qemu-system-x86_64 -cdrom termuos.iso -cpu qemu64,+syscall \
+		-netdev user,id=net0 \
+		-device virtio-net-pci,netdev=net0 \
+		-drive file=$(DISK_IMG),format=raw,if=ide \
+		-serial stdio
 
 clean:
-	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img tools/mkfs_tfs tools/tfs_write
+	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/
