@@ -6,9 +6,9 @@
 #define SYS_CLOSE 3
 #define SYS_EXIT 60
 
-#define O_RDONLY 0
-#define O_WRONLY 1
-#define O_RDWR 2
+#define O_RDONLY 0x01
+#define O_WRONLY 0x02
+#define O_RDWR 0x03
 #define O_CREAT 0x40
 
 long __syscall0(long n);
