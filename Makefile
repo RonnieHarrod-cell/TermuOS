@@ -259,5 +259,9 @@ run: iso $(DISK_IMG) tools/tfs_write tsys-install
 		-drive file=$(DISK_IMG),format=raw,if=ide \
 		-serial stdio
 
+limine:
+	git clone https://github.com/limine-bootloader/limine.git \
+		--branch=v8.x-binary --depth=1
+
 clean:
 	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img
