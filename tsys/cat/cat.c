@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 
     for (i = 1; i < argc; i++)
     {
-        int fd = open(argv[i], 0x01);
+        int fd = open(argv[i], O_RDONLY);
         if (fd < 0)
         {
             write(2, "cat: open failed\n", 17);
