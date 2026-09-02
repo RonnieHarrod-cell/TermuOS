@@ -3,6 +3,7 @@
 #include "../mm/vmm.h"
 #include "../mm/heap.h"
 #include "../fs/vfs.h"
+#include "../user/uaccess.h"
 #include "../lib/printf.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -295,25 +296,6 @@ int exec_load(const char *vfs_path, process_t *proc, uint64_t *entry_out)
   return 0;
 }
 
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096ULL
-#endif
-
-static void *user_to_kptr(process_t *proc, uint64_t uva)
-{
-  uint64_t page_uva = uva & ~(PAGE_SIZE - 1);
-  uint64_t phys = vmm_virt_to_phys(proc->pagemap, page_uva);
-
-  /* PTE → phys page: drop NX/flags; keep addr bits 51:12 */
-  phys &= 0x000FFFFFFFFFF000ULL;
-
-  if (!phys)
-    return 0;
-
-  uint64_t k = hhdm_base + phys + (uva & (PAGE_SIZE - 1));
-  return (void *)k;
-}
-
 static int on_user_stack(uint64_t uva)
 {
   uint64_t bottom = EXEC_USER_STACK_TOP - EXEC_USER_STACK_PAGES * PAGE_SIZE;
@@ -322,29 +304,23 @@ static int on_user_stack(uint64_t uva)
 
 static void put_u64_user(process_t *proc, uint64_t uva, uint64_t val)
 {
+  uint8_t bytes[8];
+
   if (!on_user_stack(uva) || !on_user_stack(uva + 7))
   {
     kprintf("exec: put_u64 off stack uva=0x%x\n", (uint32_t)uva);
     return;
   }
 
-  uint8_t *p = (uint8_t *)user_to_kptr(proc, uva);
-  if (!p)
-    return;
   for (int i = 0; i < 8; i++)
-    p[i] = (uint8_t)(val >> (8 * i));
+    bytes[i] = (uint8_t)(val >> (8 * i));
+
+  copy_to_user(proc, uva, bytes, sizeof bytes);
 }
 
 static void put_bytes_user(process_t *proc, uint64_t uva, const void *src, size_t n)
 {
-  const uint8_t *s = (const uint8_t *)src;
-  for (size_t i = 0; i < n; i++)
-  {
-    uint8_t *p = (uint8_t *)user_to_kptr(proc, uva + i);
-    if (!p)
-      return;
-    *p = s[i];
-  }
+  copy_to_user(proc, uva, src, n);
 }
 
 static size_t exec_strlen(const char *s)

@@ -24,3 +24,11 @@ void vmm_map(pagemap_t pm, uint64_t virt, uint64_t phys, uint64_t flags);
 void vmm_unmap(pagemap_t pm, uint64_t virt);
 void vmm_switch(pagemap_t pm);
 uint64_t vmm_virt_to_phys(pagemap_t pm, uint64_t virt);
+
+/*
+ * Return the leaf PTE mapping `virt`, or 0 if the address is not mapped.
+ * The USER and WRITE bits of the result are ANDed with those of every
+ * higher-level entry, so they describe the effective access rights the CPU
+ * would enforce — which is what the user-buffer helpers need to check.
+ */
+uint64_t vmm_virt_to_pte(pagemap_t pm, uint64_t virt);

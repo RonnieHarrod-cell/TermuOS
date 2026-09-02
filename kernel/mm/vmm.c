@@ -100,6 +100,31 @@ void vmm_switch(pagemap_t pm)
     __asm__ volatile("movq %0, %%cr3" :: "r"(pm) : "memory");
 }
 
+uint64_t vmm_virt_to_pte(pagemap_t pm, uint64_t virt)
+{
+    uint64_t *pml4 = phys_to_virt_table(pm);
+    uint64_t acc = ~(uint64_t)0; /* AND of the permission bits seen so far */
+
+    if (!(pml4[PML4_IDX(virt)] & VMM_PRESENT)) return 0;
+    acc &= pml4[PML4_IDX(virt)];
+    uint64_t *pdpt = phys_to_virt_table(pml4[PML4_IDX(virt)]);
+
+    if (!(pdpt[PDPT_IDX(virt)] & VMM_PRESENT)) return 0;
+    acc &= pdpt[PDPT_IDX(virt)];
+    uint64_t *pd = phys_to_virt_table(pdpt[PDPT_IDX(virt)]);
+
+    if (!(pd[PD_IDX(virt)] & VMM_PRESENT)) return 0;
+    acc &= pd[PD_IDX(virt)];
+    uint64_t *pt = phys_to_virt_table(pd[PD_IDX(virt)]);
+
+    uint64_t pte = pt[PT_IDX(virt)];
+    if (!(pte & VMM_PRESENT)) return 0;
+    acc &= pte;
+
+    /* Keep the leaf's address bits, but the ancestors' effective USER/WRITE. */
+    return (pte & ~(VMM_USER | VMM_WRITE)) | (acc & (VMM_USER | VMM_WRITE));
+}
+
 uint64_t vmm_virt_to_phys(pagemap_t pm, uint64_t virt)
 {
     uint64_t *pml4 = phys_to_virt_table(pm);

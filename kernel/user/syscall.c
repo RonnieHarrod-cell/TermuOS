@@ -11,6 +11,7 @@
 #include "../ipc/port.h"
 #include "../proc/launch.h"
 #include "../proc/process.h"
+#include "uaccess.h"
 #include "../lib/printf.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -96,59 +97,6 @@ static process_t *cur_proc(void)
 {
     thread_t *t = thread_current();
     return t ? t->owner : 0;
-}
-
-static void *user_kptr(process_t *proc, uint64_t uva)
-{
-    if (!proc || !uva)
-        return 0;
-    uint64_t page = uva & ~(PAGE_SIZE - 1);
-    uint64_t phys = vmm_virt_to_phys(proc->pagemap, page);
-    phys &= 0x000FFFFFFFFFF000ULL;
-    if (!phys)
-        return 0;
-    return (void *)(hhdm_base + phys + (uva & (PAGE_SIZE - 1)));
-}
-
-static int copy_from_user(process_t *proc, void *kdst, uint64_t usrc, size_t n)
-{
-    uint8_t *d = (uint8_t *)kdst;
-    for (size_t i = 0; i < n; i++)
-    {
-        uint8_t *s = (uint8_t *)user_kptr(proc, usrc + i);
-        if (!s)
-            return -1;
-        d[i] = *s;
-    }
-    return 0;
-}
-
-static int copy_to_user(process_t *proc, uint64_t udst, const void *ksrc, size_t n)
-{
-    const uint8_t *s = (const uint8_t *)ksrc;
-    for (size_t i = 0; i < n; i++)
-    {
-        uint8_t *d = (uint8_t *)user_kptr(proc, udst + i);
-        if (!d)
-            return -1;
-        *d = s[i];
-    }
-    return 0;
-}
-
-static int copy_user_str(process_t *proc, char *kdst, uint64_t usrc, size_t max)
-{
-    for (size_t i = 0; i < max; i++)
-    {
-        uint8_t *s = (uint8_t *)user_kptr(proc, usrc + i);
-        if (!s)
-            return -1;
-        kdst[i] = (char)*s;
-        if (kdst[i] == '\0')
-            return 0;
-    }
-    kdst[max - 1] = '\0';
-    return 0;
 }
 
 /* mmap */
@@ -256,27 +204,33 @@ struct kernel_stat
 
 static uint64_t sys_fstat(uint64_t fd, uint64_t buf_addr)
 {
-    struct kernel_stat *st = (struct kernel_stat *)buf_addr;
+    process_t *proc = cur_proc();
+    struct kernel_stat st;
+
+    if (!proc)
+        return (uint64_t)-1;
 
     /* Zero the whole struct. */
-    uint8_t *p = (uint8_t *)st;
-    for (size_t i = 0; i < sizeof(*st); i++)
+    uint8_t *p = (uint8_t *)&st;
+    for (size_t i = 0; i < sizeof(st); i++)
         p[i] = 0;
 
     if (fd == 0 || fd == 1 || fd == 2)
     {
-        st->st_mode = S_IFCHR | 0620;
-        st->st_rdev = 0x0501; /* tty major/minor */
-        st->st_blksize = 1024;
+        st.st_mode = S_IFCHR | 0620;
+        st.st_rdev = 0x0501; /* tty major/minor */
+        st.st_blksize = 1024;
     }
     else
     {
         /* We do not have an fd-to-path lookup, so return a generic regular file. */
-        st->st_mode = S_IFREG | 0644;
-        st->st_blksize = 512;
-        st->st_size = 0;
+        st.st_mode = S_IFREG | 0644;
+        st.st_blksize = 512;
+        st.st_size = 0;
     }
 
+    if (copy_to_user(proc, buf_addr, &st, sizeof st) < 0)
+        return (uint64_t)-1;
     return 0;
 }
 
@@ -466,7 +420,12 @@ static uint64_t sys_uptime(void)
 // Returns port pool index (>=0) or -1 if not found.
 static uint64_t sys_port_find(uint64_t name_addr)
 {
-    const char *name = (const char *)name_addr;
+    process_t *proc = cur_proc();
+    char name[PORT_NAME_MAX];
+
+    if (!proc || copy_user_str(proc, name, name_addr, sizeof name) < 0)
+        return (uint64_t)-1;
+
     port_t *p = port_find(name);
     if (!p)
         return (uint64_t)-1;
@@ -476,10 +435,18 @@ static uint64_t sys_port_find(uint64_t name_addr)
     return (uint64_t)(p - port_pool);
 }
 
+#define IPC_INLINE_MAX 64
+
+/* Largest payload a userspace sender may hand to a port in one message. */
+#define IPC_USER_MAX 512
+
 static uint64_t sys_port_send(uint64_t idx, uint64_t code,
                               uint64_t data_addr, uint64_t length)
 {
-    if (!proc_check_perm(PERM_IPC_SEND))
+    process_t *proc = cur_proc();
+    uint8_t payload[IPC_USER_MAX];
+
+    if (!proc || !proc_check_perm(PERM_IPC_SEND))
         return (uint64_t)-1;
 
     extern port_t port_pool[];
@@ -487,15 +454,22 @@ static uint64_t sys_port_send(uint64_t idx, uint64_t code,
     if (idx >= 32 || !port_used[idx])
         return (uint64_t)-1;
 
-    return (uint64_t)port_send(&port_pool[idx], (uint32_t)code,
-                               (void *)data_addr, (uint32_t)length);
-}
+    if (length > IPC_USER_MAX)
+        return (uint64_t)-1;
 
-#define IPC_INLINE_MAX 64
+    /* port_send() copies the payload onto the heap, so a local buffer is fine. */
+    if (length > 0 && copy_from_user(proc, payload, data_addr, (size_t)length) < 0)
+        return (uint64_t)-1;
+
+    return (uint64_t)port_send(&port_pool[idx], (uint32_t)code,
+                               length ? payload : 0, (uint32_t)length);
+}
 
 static uint64_t sys_port_receive(uint64_t idx, uint64_t out_addr)
 {
-    if (!proc_check_perm(PERM_IPC_RECEIVE))
+    process_t *proc = cur_proc();
+
+    if (!proc || !proc_check_perm(PERM_IPC_RECEIVE))
         return (uint64_t)-1;
 
     extern port_t port_pool[];
@@ -517,17 +491,20 @@ static uint64_t sys_port_receive(uint64_t idx, uint64_t out_addr)
      *   offset 16: uint32_t length
      *   offset 20: uint8_t  inline_data[64]
      */
-    uint8_t *base = (uint8_t *)out_addr;
-    uint32_t *u32 = (uint32_t *)base;
-    uint64_t *data_ptr = (uint64_t *)(base + 8);
-    uint8_t *inlined = base + 20;
+    uint8_t out[20 + IPC_INLINE_MAX];
+    for (size_t i = 0; i < sizeof out; i++)
+        out[i] = 0;
+
+    uint32_t *u32 = (uint32_t *)out;
+    uint64_t *data_ptr = (uint64_t *)(out + 8);
+    uint8_t *inlined = out + 20;
 
     u32[0] = msg.sender_pid;
     u32[1] = msg.code;
     u32[4] = msg.length;
 
     /* copy up to 64 bytes of payload into the inline buffer */
-    uint32_t copy_len = msg.length < 64 ? msg.length : 64;
+    uint32_t copy_len = msg.length < IPC_INLINE_MAX ? msg.length : IPC_INLINE_MAX;
     if (msg.data && copy_len > 0)
     {
         uint8_t *src = (uint8_t *)msg.data;
@@ -535,18 +512,26 @@ static uint64_t sys_port_receive(uint64_t idx, uint64_t out_addr)
             inlined[i] = src[i];
     }
 
-    /* point data at the inline buffer so app can read it */
-    *data_ptr = (uint64_t)inlined;
+    /* point data at the caller's copy of the inline buffer */
+    *data_ptr = out_addr + 20;
+
+    if (copy_to_user(proc, out_addr, out, sizeof out) < 0)
+        return (uint64_t)-1;
 
     return 0;
 }
 
 static uint64_t sys_port_create(uint64_t name_addr)
 {
-    if (!proc_check_perm(PERM_IPC_RECEIVE))
+    process_t *proc = cur_proc();
+    char name[PORT_NAME_MAX];
+
+    if (!proc || !proc_check_perm(PERM_IPC_RECEIVE))
         return (uint64_t)-1;
 
-    const char *name = (const char *)name_addr;
+    if (copy_user_str(proc, name, name_addr, sizeof name) < 0)
+        return (uint64_t)-1;
+
     port_t *p = port_create(name);
     if (!p)
         return (uint64_t)-1;
@@ -561,18 +546,24 @@ struct fb_info_user
     uint32_t bpp;
 };
 
-static long sys_fb_info(struct fb_info_user *out)
+static long sys_fb_info(uint64_t out_addr)
 {
-    if (!out)
+    process_t *proc = cur_proc();
+    struct fb_info_user info;
+
+    if (!proc || !out_addr)
         return -1;
     struct limine_framebuffer *fb = fb_get();
     if (!fb)
         return -1;
 
-    out->width = fb->width;
-    out->height = fb->height;
-    out->pitch = fb->pitch;
-    out->bpp = fb->bpp;
+    info.width = fb->width;
+    info.height = fb->height;
+    info.pitch = fb->pitch;
+    info.bpp = fb->bpp;
+
+    if (copy_to_user(proc, out_addr, &info, sizeof info) < 0)
+        return -1;
     return 0;
 }
 
@@ -600,18 +591,12 @@ static uint64_t sys_spawn(uint64_t path_addr)
     if (!path_addr)
         return (uint64_t)-1;
 
+    process_t *proc = cur_proc();
     char path[VFS_PATH_MAX];
-    int i;
-    const char *upath = (const char *)path_addr;
-    for (i = 0; i < VFS_PATH_MAX - 1; i++)
-    {
-        char c = upath[i];
-        path[i] = c;
-        if (c == '\0')
-            break;
-    }
-    path[i] = '\0';
-    if (i == 0)
+
+    if (!proc || copy_user_str(proc, path, path_addr, sizeof path) < 0)
+        return (uint64_t)-1;
+    if (path[0] == '\0')
         return (uint64_t)-1;
 
     int pid = exec_launch(path, 0xffffffff);
@@ -677,7 +662,7 @@ uint64_t syscall_dispatch(uint64_t num, uint64_t a, uint64_t b, uint64_t c, uint
     case SYS_PORT_CREATE:
         return sys_port_create(a);
     case SYS_FB_INFO:
-        return sys_fb_info((struct fb_info_user *)a);
+        return sys_fb_info(a);
     case SYS_FB_CLEAR:
         return sys_fb_clear((uint32_t)a);
     case SYS_FB_FILL_RECT:
