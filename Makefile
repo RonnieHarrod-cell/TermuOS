@@ -121,7 +121,8 @@ SRCS += \
 SRCS += kernel/shell/shell.c
 SRCS += \
        kernel/user/syscall.c \
-       kernel/user/userspace.c
+       kernel/user/userspace.c \
+	   kernel/user/uaccess.c
 
 OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS)) \
        $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(CPPSRCS)) \

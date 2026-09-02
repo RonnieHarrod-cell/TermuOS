@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "uaccess.h"
 #include "../arch/x86_64/gdt.h"
 #include "../drivers/video/terminal.h"
 #include "../drivers/serial/serial.h"
@@ -88,67 +89,10 @@ static uint64_t sys_brk(uint64_t addr)
     return current_brk;
 }
 
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096ULL
-#endif
-
 static process_t *cur_proc(void)
 {
     thread_t *t = thread_current();
     return t ? t->owner : 0;
-}
-
-static void *user_kptr(process_t *proc, uint64_t uva)
-{
-    if (!proc || !uva)
-        return 0;
-    uint64_t page = uva & ~(PAGE_SIZE - 1);
-    uint64_t phys = vmm_virt_to_phys(proc->pagemap, page);
-    phys &= 0x000FFFFFFFFFF000ULL;
-    if (!phys)
-        return 0;
-    return (void *)(hhdm_base + phys + (uva & (PAGE_SIZE - 1)));
-}
-
-static int copy_from_user(process_t *proc, void *kdst, uint64_t usrc, size_t n)
-{
-    uint8_t *d = (uint8_t *)kdst;
-    for (size_t i = 0; i < n; i++)
-    {
-        uint8_t *s = (uint8_t *)user_kptr(proc, usrc + i);
-        if (!s)
-            return -1;
-        d[i] = *s;
-    }
-    return 0;
-}
-
-static int copy_to_user(process_t *proc, uint64_t udst, const void *ksrc, size_t n)
-{
-    const uint8_t *s = (const uint8_t *)ksrc;
-    for (size_t i = 0; i < n; i++)
-    {
-        uint8_t *d = (uint8_t *)user_kptr(proc, udst + i);
-        if (!d)
-            return -1;
-        *d = s[i];
-    }
-    return 0;
-}
-
-static int copy_user_str(process_t *proc, char *kdst, uint64_t usrc, size_t max)
-{
-    for (size_t i = 0; i < max; i++)
-    {
-        uint8_t *s = (uint8_t *)user_kptr(proc, usrc + i);
-        if (!s)
-            return -1;
-        kdst[i] = (char)*s;
-        if (kdst[i] == '\0')
-            return 0;
-    }
-    kdst[max - 1] = '\0';
-    return 0;
 }
 
 /* mmap */
@@ -379,6 +323,7 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 
     if (!proc_check_perm(PERM_FS_WRITE))
         return (uint64_t)-1;
+
     int n = vfs_write((int)fd, tmp, (size_t)len);
     return (uint64_t)(int64_t)n;
 }
@@ -389,7 +334,6 @@ static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
     if (!proc || !buf || !len)
         return (uint64_t)-1;
 
-    // stdin -> keyboard
     if ((int)fd == 0)
     {
         while (!keyboard_haschar())
@@ -405,6 +349,7 @@ static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 
     if (len > 512)
         len = 512;
+
     uint8_t tmp[512];
     int n = vfs_read((int)fd, tmp, (size_t)len);
     if (n <= 0)
@@ -419,10 +364,10 @@ static uint64_t sys_open(uint64_t path_uva, uint64_t flags, uint64_t mode)
 {
     (void)mode;
     process_t *proc = cur_proc();
+    char path[256];
+
     if (!proc || !path_uva)
         return (uint64_t)-1;
-
-    char path[256];
     if (copy_user_str(proc, path, path_uva, sizeof path) < 0)
         return (uint64_t)-1;
 
