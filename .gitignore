@@ -10,3 +10,5 @@ apps/hello/main.o
 apps/hello_libc/main.o
 apps/hello_libc/hello_libc
 libc/build/
+test.img
+tests-serial.log

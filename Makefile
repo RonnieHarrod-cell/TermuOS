@@ -29,7 +29,7 @@ quiet_LD  = $(Q)printf "  ${C_LD}[LD]${C_RESET}   %s\n" "$@";
 # ---------------------------------------------------------------------------
 # Default goal FIRST
 # ---------------------------------------------------------------------------
-.PHONY: all iso run clean tsys tsys-clean tsys-install
+.PHONY: all iso run clean tsys tsys-clean tsys-install test test-img
 
 all: iso
 
@@ -257,6 +257,44 @@ tsys-install: tsys tools/tfs_write $(DISK_IMG)
 	$(Q)$(TFS_WRITE) $(DISK_IMG) $(TSYS_OUT)/edit.tsys /bin/edit.tsys
 
 # ---------------------------------------------------------------------------
+# Tests: boot under QEMU and check the userland from the shell
+# ---------------------------------------------------------------------------
+TEST_IMG   := test.img
+TEST_OUT   := $(BUILD_DIR)/tests
+TEST_SRCS  := $(wildcard tests/tsys/*.c)
+TEST_BINS  := $(patsubst tests/tsys/%.c,$(TEST_OUT)/%.tsys,$(TEST_SRCS))
+TEST_FIXTURES := motd big.txt block.txt empty.txt
+
+$(TEST_OUT):
+	mkdir -p $@
+
+$(TEST_OUT)/%.tsys: tests/tsys/%.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TEST_OUT)
+	$(Q)printf "  [TEST]  $*.tsys\n"
+	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) $< $(TSYS_LIB_A)
+
+# A throwaway image, rebuilt every run: tfs_write never overwrites, so the
+# tests must not reuse an image that already holds older copies.
+.PHONY: test-img
+test-img: tools/mkfs_tfs tools/tfs_write tsys $(TEST_BINS)
+	$(Q)rm -f $(TEST_IMG)
+	$(Q)./tools/mkfs_tfs $(TEST_IMG) 64 >/dev/null
+	$(Q)for b in $(TSYS_BINS); do \
+		printf "  [INST]  /bin/$$(basename $$b)\n"; \
+		$(TFS_WRITE) $(TEST_IMG) $$b /bin/$$(basename $$b) >/dev/null; \
+	done
+	$(Q)for b in $(TEST_BINS); do \
+		printf "  [INST]  /bin/$$(basename $$b)\n"; \
+		$(TFS_WRITE) $(TEST_IMG) $$b /bin/$$(basename $$b) >/dev/null; \
+	done
+	$(Q)for f in $(TEST_FIXTURES); do \
+		printf "  [INST]  /etc/$$f\n"; \
+		$(TFS_WRITE) $(TEST_IMG) tests/fixtures/$$f /etc/$$f >/dev/null; \
+	done
+
+test: iso test-img
+	$(Q)python3 tests/run_tests.py --iso termuos.iso --img $(TEST_IMG)
+
+# ---------------------------------------------------------------------------
 # Run: ISO + disk + install tsys into the image
 # ---------------------------------------------------------------------------
 run: iso $(DISK_IMG) tools/tfs_write tsys-install
@@ -271,4 +309,4 @@ limine:
 		--branch=v8.x-binary --depth=1
 
 clean:
-	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img
+	@rm -rf $(BUILD_DIR) $(KERNEL) termuos.iso iso/ disk.img test.img tests-serial.log
