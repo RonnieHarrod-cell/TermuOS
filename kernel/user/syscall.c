@@ -335,12 +335,20 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
     return (uint64_t)(int64_t)n;
 }
 
+/* Most bytes one read() call will move through the kernel bounce buffer. */
+#define SYS_READ_MAX 512
+
 static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
 {
     process_t *proc = cur_proc();
-    if (!proc || !buf || !len)
-        return (uint64_t)-1;
+    uint8_t tmp[SYS_READ_MAX];
 
+    if (!proc || !buf)
+        return (uint64_t)-1;
+    if (len == 0)
+        return 0;
+
+    /* fd 0: stdin — hand back one keystroke at a time. */
     if ((int)fd == 0)
     {
         while (!keyboard_haschar())
@@ -351,16 +359,21 @@ static uint64_t sys_read(uint64_t fd, uint64_t buf, uint64_t len)
         return 1;
     }
 
+    /* fd 1 and 2 are the write ends of the console; they are not readable. */
+    if ((int)fd == 1 || (int)fd == 2)
+        return (uint64_t)-1;
+
     if (!proc_check_perm(PERM_FS_READ))
         return (uint64_t)-1;
 
-    if (len > 512)
-        len = 512;
+    /* fd > 2: read into a kernel buffer, then copy it out. Short reads are
+     * fine — userspace loops — so cap each call rather than failing. */
+    if (len > SYS_READ_MAX)
+        len = SYS_READ_MAX;
 
-    uint8_t tmp[512];
     int n = vfs_read((int)fd, tmp, (size_t)len);
     if (n <= 0)
-        return (uint64_t)(int64_t)n;
+        return (uint64_t)(int64_t)n; /* 0 = EOF, negative = error, both kept */
 
     if (copy_to_user(proc, buf, tmp, (size_t)n) < 0)
         return (uint64_t)-1;

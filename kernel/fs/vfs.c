@@ -197,9 +197,16 @@ static void split_path(const char *path, char *parent, char *name)
 
 // File-descriptor allocation
 
+/*
+ * Descriptors 0, 1 and 2 are reserved for stdin/stdout/stderr, so an open()
+ * from userspace can never collide with them: sys_read()/sys_write() route
+ * those three to the console and everything above them to the VFS.
+ */
+#define VFS_FD_FIRST 3
+
 static int alloc_fd(void)
 {
-    for (int i = 0; i < VFS_MAX_FDS; i++)
+    for (int i = VFS_FD_FIRST; i < VFS_MAX_FDS; i++)
         if (!fds[i].used)
             return i;
     return -1;
