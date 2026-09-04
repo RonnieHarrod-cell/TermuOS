@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "uaccess.h"
 #include "../arch/x86_64/gdt.h"
 #include "../drivers/video/terminal.h"
 #include "../drivers/serial/serial.h"
@@ -88,10 +89,6 @@ static uint64_t sys_brk(uint64_t addr)
     current_brk = addr;
     return current_brk;
 }
-
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096ULL
-#endif
 
 static process_t *cur_proc(void)
 {
@@ -333,6 +330,7 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 
     if (!proc_check_perm(PERM_FS_WRITE))
         return (uint64_t)-1;
+
     int n = vfs_write((int)fd, tmp, (size_t)len);
     return (uint64_t)(int64_t)n;
 }
@@ -386,10 +384,10 @@ static uint64_t sys_open(uint64_t path_uva, uint64_t flags, uint64_t mode)
 {
     (void)mode;
     process_t *proc = cur_proc();
+    char path[256];
+
     if (!proc || !path_uva)
         return (uint64_t)-1;
-
-    char path[256];
     if (copy_user_str(proc, path, path_uva, sizeof path) < 0)
         return (uint64_t)-1;
 
