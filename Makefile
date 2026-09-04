@@ -199,6 +199,8 @@ TSYS_LIB_A   := $(TSYS_OUT)/libtsys.a
 DISK_IMG     ?= disk.img
 TFS_WRITE    := ./tools/tfs_write
 
+TSYS_HDRS := $(wildcard tsys/lib/include/*.h)
+
 TSYS_LIB_SRCS := \
 	tsys/lib/src/syscall.c \
 	tsys/lib/src/unistd.c \
@@ -209,7 +211,7 @@ TSYS_LIB_OBJS := $(patsubst tsys/lib/src/%.c,$(TSYS_OUT)/lib/%.o,$(TSYS_LIB_SRCS
 $(TSYS_OUT) $(TSYS_OUT)/lib:
 	mkdir -p $@
 
-$(TSYS_OUT)/lib/%.o: tsys/lib/src/%.c | $(TSYS_OUT)/lib
+$(TSYS_OUT)/lib/%.o: tsys/lib/src/%.c $(TSYS_HDRS) | $(TSYS_OUT)/lib
 	$(Q)printf "  [TSYS]  %s\n" "$<"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -c $< -o $@
 
@@ -217,24 +219,24 @@ $(TSYS_LIB_A): $(TSYS_LIB_OBJS)
 	$(Q)printf "  [AR]    libtsys.a\n"
 	$(Q)ar rcs $@ $^
 
-$(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+$(TSYS_OUT)/echo.tsys: tsys/echo/echo.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TSYS_OUT)
 	$(Q)printf "  [TSYS]  echo.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/echo/echo.c $(TSYS_LIB_A)
 
-$(TSYS_OUT)/uname.tsys: tsys/uname/uname.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+$(TSYS_OUT)/uname.tsys: tsys/uname/uname.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TSYS_OUT)
 	$(Q)printf "  [TSYS]  uname.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/uname/uname.c $(TSYS_LIB_A)
 
-$(TSYS_OUT)/cat.tsys: tsys/cat/cat.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+$(TSYS_OUT)/cat.tsys: tsys/cat/cat.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TSYS_OUT)
 	$(Q)printf "  [TSYS]  cat.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/cat/cat.c $(TSYS_LIB_A)
 
-$(TSYS_OUT)/edit.tsys: tsys/edit/edit.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+$(TSYS_OUT)/edit.tsys: tsys/edit/edit.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TSYS_OUT)
 	$(Q)printf "  [TSYS]  edit.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/edit/edit.c $(TSYS_LIB_A)
 
 # Add more apps here, e.g.:
-# $(TSYS_OUT)/hello.tsys: tsys/hello/hello.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TSYS_OUT)
+# $(TSYS_OUT)/hello.tsys: tsys/hello/hello.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TSYS_OUT)
 #	$(Q)printf "  [TSYS]  hello.tsys\n"
 #	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) tsys/hello/hello.c $(TSYS_LIB_A)
 
@@ -263,12 +265,12 @@ TEST_IMG   := test.img
 TEST_OUT   := $(BUILD_DIR)/tests
 TEST_SRCS  := $(wildcard tests/tsys/*.c)
 TEST_BINS  := $(patsubst tests/tsys/%.c,$(TEST_OUT)/%.tsys,$(TEST_SRCS))
-TEST_FIXTURES := motd big.txt block.txt empty.txt
+TEST_FIXTURES := motd big.txt block.txt empty.txt scratch.txt
 
 $(TEST_OUT):
 	mkdir -p $@
 
-$(TEST_OUT)/%.tsys: tests/tsys/%.c $(TSYS_CRT0) $(TSYS_LIB_A) | $(TEST_OUT)
+$(TEST_OUT)/%.tsys: tests/tsys/%.c $(TSYS_CRT0) $(TSYS_LIB_A) $(TSYS_HDRS) | $(TEST_OUT)
 	$(Q)printf "  [TEST]  $*.tsys\n"
 	$(Q)$(TSYS_CC) $(TSYS_CFLAGS) -o $@ $(TSYS_CRT0) $< $(TSYS_LIB_A)
 

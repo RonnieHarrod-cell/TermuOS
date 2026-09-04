@@ -304,20 +304,34 @@ static uint64_t sys_exit(uint64_t code)
     return 0;
 }
 
+/* Most bytes one write() call will move through the kernel bounce buffer. */
+#define SYS_WRITE_MAX 512
+
 static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
 {
     process_t *proc = cur_proc();
+    uint8_t tmp[SYS_WRITE_MAX];
+
     if (!proc || !buf_addr)
         return (uint64_t)-1;
     if (len == 0)
         return 0;
-    if (len > 512)
-        len = 512;
 
-    uint8_t tmp[512];
+    /* fd 0 is the console's read end; it is not writable. */
+    if ((int)fd == 0)
+        return (uint64_t)-1;
+
+    /* Short writes are fine — userspace loops — so cap each call rather
+     * than failing an oversized request. */
+    if (len > SYS_WRITE_MAX)
+        len = SYS_WRITE_MAX;
+
+    /* Take a copy before looking at the bytes: never hand a user pointer
+     * to the console or to the filesystem. */
     if (copy_from_user(proc, tmp, buf_addr, (size_t)len) < 0)
         return (uint64_t)-1;
 
+    /* fd 1 and 2: the console, on screen and down the serial line. */
     if ((int)fd == 1 || (int)fd == 2)
     {
         for (uint64_t i = 0; i < len; i++)
@@ -332,7 +346,7 @@ static uint64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t len)
         return (uint64_t)-1;
 
     int n = vfs_write((int)fd, tmp, (size_t)len);
-    return (uint64_t)(int64_t)n;
+    return (uint64_t)(int64_t)n; /* negative errors kept as-is */
 }
 
 /* Most bytes one read() call will move through the kernel bounce buffer. */

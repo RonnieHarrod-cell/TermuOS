@@ -81,6 +81,10 @@ CASES = [
     ("run /bin/readtest.tsys",
      ["readtest done", "exited with code 0"]),
 
+    # write() routing and file writes (issue #42).
+    ("run /bin/writetest.tsys",
+     ["writetest done", "exited with code 0"]),
+
     # User-buffer helpers (issue #40).
     ("run /bin/uatest.tsys",
      ["uatest done", "exited with code 0"]),
