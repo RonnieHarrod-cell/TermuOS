@@ -235,73 +235,22 @@ static uint64_t sys_exit(uint64_t code)
 {
     thread_t *t = thread_current();
     process_t *proc = t ? t->owner : NULL;
-    int prev = t ? (int)t->id : current;
 
     kprintf("[kernel] process exited: %d\n", (int)code);
 
     if (proc && proc != proc_kernel())
         proc_exit(proc, (int32_t)code);
 
-    __asm__ volatile("cli");
-
-    for (int i = 1; i < MAX_THREADS; i++)
-    {
-        if (i != prev && threads[i].state == THREAD_RUNNING)
-            threads[i].state = THREAD_READY;
-    }
-
     if (t)
         t->state = THREAD_DEAD;
 
-    for (int i = 1; i < MAX_THREADS; i++)
-    {
-        if (i == prev)
-            continue;
-        if (threads[i].state == THREAD_RUNNING)
-            threads[i].state = THREAD_READY;
-    }
+    /* Let the normal scheduler run the shell again */
+    scheduler_yield();
 
-    int next = -1;
-    for (int i = 1; i < MAX_THREADS; i++)
-    {
-        if (i == prev)
-            continue;
-        if (threads[i].state == THREAD_READY ||
-            threads[i].state == THREAD_RUNNING)
-        {
-            next = i;
-            break;
-        }
-    }
-
-    if (next < 0)
-    {
-        kprintf("sys_exit: no other threads (prev=%d)\n", prev);
-        for (int i = 0; i < MAX_THREADS; i++)
-        {
-            if (threads[i].state != THREAD_DEAD)
-                kprintf("  t%d state=%d name=%s\n",
-                        i, (int)threads[i].state, threads[i].name);
-        }
-        __asm__ volatile("sti");
-        for (;;)
-            __asm__ volatile("hlt");
-    }
-
-    threads[next].state = THREAD_RUNNING;
-    current = next;
-
-    if (threads[prev].owner != threads[next].owner &&
-        threads[next].owner)
-        vmm_switch(threads[next].owner->pagemap);
-
-    __asm__ volatile("sti");
-
-    context_switch(&threads[prev].rsp, threads[next].rsp);
-
+    /* If yield returns, nothing is runnable */
+    kprintf("sys_exit: no runnable thread\n");
     for (;;)
         __asm__ volatile("hlt");
-    return 0;
 }
 
 /* Most bytes one write() call will move through the kernel bounce buffer. */
@@ -640,7 +589,11 @@ static uint64_t sys_wait(uint64_t pid)
             return (uint64_t)-1;
 
         if (p->state == PROC_ZOMBIE)
-            return (uint64_t)(uint32_t)p->exit_code;
+        {
+            int code = p->exit_code;
+            p->state = PROC_DEAD; /* free the slot */
+            break;
+        }
 
         scheduler_yield();
     }

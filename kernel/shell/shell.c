@@ -843,7 +843,16 @@ static int shell_exec_path(const char *path)
     for (;;)
     {
         process_t *p = proc_get((uint32_t)pid);
-        if (!p || p->state == PROC_ZOMBIE || p->state == PROC_DEAD)
+        if (!p)
+        {
+            break;
+        }
+        if (p->state == PROC_ZOMBIE)
+        {
+            p->state = PROC_DEAD;
+            break;
+        }
+        if (p->state == PROC_DEAD)
             break;
         scheduler_yield();
     }

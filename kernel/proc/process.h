@@ -17,11 +17,11 @@ typedef enum
 typedef struct process
 {
   uint32_t pid;
+  uint32_t ppid;
   char name[PROCESS_NAME_LEN];
   proc_state_t state;
   pagemap_t pagemap;
   int32_t exit_code;
-
   handle_table_t handles;
   object_header_t *ob_header;
 } process_t;
